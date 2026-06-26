@@ -515,10 +515,11 @@ function viewHome(){
   const streak=META.streak||0;
   const due=dueCount(); const goal=dailyGoal(); const done=todayCount();
 
-  let decks=DECKS.map((d,i)=>{
+  const deckCard=(d)=>{
     const {c,d:dd}=colorVars(d.color);const pct=deckPct(d);
     return `<div class="deck rise" style="background:linear-gradient(140deg,${c},${dd})" data-action="open" data-id="${d.id}">
       <button class="deckedit" data-action="editdeck" data-id="${d.id}" title="名前を編集・削除">✏️</button>
+      ${isSharedDeck(d)?`<span class="chip" style="position:absolute;left:10px;top:10px;background:rgba(255,255,255,.28);color:#fff;box-shadow:none">👨‍👩‍👧 共有</span>`:''}
       <div class="ring">${pct>0?`<span class="chip" style="background:rgba(255,255,255,.25);color:#fff;box-shadow:none">${pct}%</span>`:''}</div>
       <span class="emoji">${esc(d.emoji||'📘')}</span>
       <h3>${esc(d.name)}</h3>
@@ -526,7 +527,12 @@ function viewHome(){
       <span class="deco">${esc(d.emoji||'📘')}</span>
       <div class="bar"><i style="width:${pct}%"></i></div>
     </div>`;
-  }).join('');
+  };
+  const mine=DECKS.filter(d=>!isSharedDeck(d));
+  const sharedDecks=DECKS.filter(isSharedDeck);
+  const mineHTML=mine.map(deckCard).join('');
+  const sharedHTML=sharedDecks.map(deckCard).join('');
+  const showShared = sharedDecks.length>0 || !!syncSharedCode();
 
   return `
   <div class="hello rise">
@@ -561,9 +567,16 @@ function viewHome(){
 
   <div class="sectionhead rise"><h2>わたしの暗記帳</h2><span class="line"></span></div>
   <div class="grid">
-    ${decks}
+    ${mineHTML}
     <div class="addtile rise" data-action="newdeck"><span><span class="big">＋</span>新しい暗記帳をつくる</span></div>
   </div>
+
+  ${showShared?`
+  <div class="sectionhead rise" style="margin-top:22px"><h2>👨‍👩‍👧 家族みんなの暗記帳</h2><span class="line"></span></div>
+  <div class="grid">
+    ${sharedHTML}
+    <div class="addtile rise" data-action="newshareddeck"><span><span class="big">＋</span>家族共有の暗記帳をつくる</span></div>
+  </div>`:''}
 
   <div class="rise" style="margin-top:26px;text-align:center">
     <button class="btn ghost sm" data-action="photoBulk0">📷 写真からまとめてカードを作る</button>
@@ -877,9 +890,9 @@ function openModal(html){
 function closeModal(){const m=$('#modalbg');if(m)m.remove();modalState={};}
 
 /* ----- deck editor ----- */
-function deckModal(deck){
+function deckModal(deck,opts){
   const isNew=!deck;
-  modalState={deck:deck?{...deck}:{id:uid(),name:'',emoji:'📘',color:'pink',cards:[],createdAt:Date.now()}};
+  modalState={deck:deck?{...deck}:{id:uid(),name:'',emoji:'📘',color:'pink',cards:[],createdAt:Date.now(),shared:!!(opts&&opts.shared)}};
   const d=modalState.deck;
   const sws=DECK_COLORS.map(c=>`<div class="sw ${d.color===c[0]?'on':''}" style="background:linear-gradient(135deg,${c[1]},${c[2]})" data-swatch="${c[0]}"></div>`).join('');
   const eps=DECK_EMOJI.map(e=>`<div class="ep ${d.emoji===e?'on':''}" data-emoji="${e}">${e}</div>`).join('');
@@ -890,6 +903,12 @@ function deckModal(deck){
         <input class="input" id="dName" value="${esc(d.name)}" placeholder="れい：中1 英単語" maxlength="40" enterkeyhint="done"></label>
       <label class="fld"><span class="lab">🎨 いろ</span></label><div class="palette" id="dPalette">${sws}</div>
       <label class="fld"><span class="lab">😀 アイコン</span></label><div class="emojipick" id="dEmoji">${eps}</div>
+      <label class="fld"><span class="lab">👨‍👩‍👧 おき場所</span></label>
+      <div class="optseg" id="dShared" style="margin-bottom:4px">
+        <button type="button" class="segbtn ${d.shared?'':'on'}" data-sh="0">🔒 自分用</button>
+        <button type="button" class="segbtn ${d.shared?'on':''}" data-sh="1">👨‍👩‍👧 家族共有</button>
+      </div>
+      <div class="mut" style="margin:-2px 0 6px;font-size:12px">「家族共有」にすると、家族の合言葉でつながった全員に表示されます（同期オンのとき）。</div>
       <div class="macts">
         ${isNew?'':'<button class="btn ghost sm" data-action="deldeck">🗑️ 削除</button>'}
         <button class="btn block" data-action="savedeck">${isNew?'つくる':'保存する'}</button>
@@ -897,13 +916,14 @@ function deckModal(deck){
     </div>`);
   $('#dPalette').addEventListener('click',e=>{const sw=e.target.closest('[data-swatch]');if(!sw)return;d.color=sw.dataset.swatch;$$('#dPalette .sw').forEach(x=>x.classList.toggle('on',x===sw));});
   $('#dEmoji').addEventListener('click',e=>{const ep=e.target.closest('[data-emoji]');if(!ep)return;d.emoji=ep.dataset.emoji;$$('#dEmoji .ep').forEach(x=>x.classList.toggle('on',x===ep));});
+  $('#dShared').addEventListener('click',e=>{const b=e.target.closest('[data-sh]');if(!b)return;d.shared=(b.dataset.sh==='1');$$('#dShared .segbtn').forEach(x=>x.classList.toggle('on',x===b));});
   $('#dName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();savedeck();}});
 }
 async function savedeck(){
   const d=modalState.deck;d.name=$('#dName').value.trim()||'なまえなし暗記帳';
   const existing=deckById(d.id);
-  if(existing){Object.assign(existing,{name:d.name,emoji:d.emoji,color:d.color});await idbPut(existing);}
-  else{DECKS.push(d);await idbPut(d);}
+  if(existing){Object.assign(existing,{name:d.name,emoji:d.emoji,color:d.color,shared:!!d.shared});await idbPut(existing);}
+  else{d.shared=!!d.shared;DECKS.push(d);await idbPut(d);}
   closeModal();
   if(!existing){state.deckId=d.id;go('deck');toast('暗記帳をつくったよ！🎉');}
   else render();
@@ -1388,11 +1408,14 @@ function finishListen(){
 }
 
 /* ====== クラウド同期（任意・Supabase。設定はこの端末に保存・写真とAPIキーは同期しない） ====== */
-let _sbReady=null,_sb=null,_syncCh=null,_syncApplying=false,_syncTimer=null,syncStatus='off';
+let _sbReady=null,_sb=null,_syncChs={},_syncApplying=false,_syncTimer=null,syncStatus='off';
 function syncUrl(){ return (localStorage.getItem('pasha-sync-url')||'').replace(/\/+$/,''); }
 function syncKey(){ return localStorage.getItem('pasha-sync-key')||''; }
-function syncCode(){ return localStorage.getItem('pasha-sync-code')||''; }
-function syncOn(){ return localStorage.getItem('pasha-sync-on')==='1' && !!syncUrl() && !!syncKey() && !!syncCode(); }
+function syncCode(){ return localStorage.getItem('pasha-sync-code')||''; }            // 自分用スペースの合言葉
+function syncSharedCode(){ return localStorage.getItem('pasha-sync-shared')||''; }     // 家族共有スペースの合言葉
+function syncOn(){ return localStorage.getItem('pasha-sync-on')==='1' && !!syncUrl() && !!syncKey() && (!!syncCode()||!!syncSharedCode()); }
+function syncSpaces(){ const sp=[]; if(syncCode())sp.push({kind:'personal',code:syncCode()}); if(syncSharedCode())sp.push({kind:'shared',code:syncSharedCode()}); return sp; }
+function isSharedDeck(d){ return !!(d&&d.shared); }
 function deviceId(){ let d=localStorage.getItem('pasha-device'); if(!d){d='dv'+Math.random().toString(36).slice(2,10); try{localStorage.setItem('pasha-device',d);}catch(e){}} return d; }
 function loadScript(src){ return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('読込失敗'));document.head.appendChild(s);}); }
 function loadSupabase(){ if(_sbReady)return _sbReady; _sbReady=loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2').then(()=>window.supabase).catch(e=>{_sbReady=null;throw e;}); return _sbReady; }
@@ -1401,45 +1424,63 @@ async function startSync(){
   try{
     const lib=await loadSupabase();
     _sb=lib.createClient(syncUrl(), syncKey());
-    const code=syncCode();
-    const {data:row,error}=await _sb.from('families').select('data,updated_by').eq('code',code).maybeSingle();
-    if(error)throw error;
-    if(row&&row.data){ await applyRemote(row.data, true); }
+    stopChannels();
+    const spaces=syncSpaces();
+    for(const sp of spaces){
+      const {data:row,error}=await _sb.from('families').select('data,updated_by').eq('code',sp.code).maybeSingle();
+      if(error)throw error;
+      if(row&&row.data){ await applyRemoteSpace(sp.kind, row.data, true); }
+    }
     await pushNow();
-    if(_syncCh){try{_sb.removeChannel(_syncCh);}catch(e){}}
-    _syncCh=_sb.channel('fam-'+code)
-      .on('postgres_changes',{event:'*',schema:'public',table:'families',filter:'code=eq.'+code}, payload=>{
-        const r=payload&&payload.new; if(!r||r.updated_by===deviceId())return; if(r.data)applyRemote(r.data,false);
-      }).subscribe();
+    for(const sp of spaces){
+      const kind=sp.kind, code=sp.code;
+      _syncChs[code]=_sb.channel('fam-'+code)
+        .on('postgres_changes',{event:'*',schema:'public',table:'families',filter:'code=eq.'+code}, payload=>{
+          const r=payload&&payload.new; if(!r||r.updated_by===deviceId())return; if(r.data)applyRemoteSpace(kind, r.data, false);
+        }).subscribe();
+    }
     syncStatus='接続中'; toast('クラウド同期：接続しました ☁️');
   }catch(e){ syncStatus='エラー：'+((e&&e.message)||''); toast('同期エラー：URL/キー/テーブル設定をご確認ください'); }
 }
-function stopSync(){ if(_syncCh&&_sb){try{_sb.removeChannel(_syncCh);}catch(e){}} _syncCh=null; _sb=null; syncStatus='off'; }
-async function applyRemote(data, merge){
+function stopChannels(){ if(_sb){ for(const k in _syncChs){ try{_sb.removeChannel(_syncChs[k]);}catch(e){} } } _syncChs={}; }
+function stopSync(){ stopChannels(); _sb=null; syncStatus='off'; }
+function normalizeDeck(d, isShared, imgMap){
+  return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||Date.now(),shared:!!isShared,
+    cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0,image:imgMap[c.id]||null}))};
+}
+async function applyRemoteSpace(kind, data, merge){
   _syncApplying=true;
   try{
+    const isShared=(kind==='shared');
     const imgMap={}; DECKS.forEach(d=>d.cards.forEach(c=>{ if(c.image)imgMap[c.id]=c.image; }));
-    const remoteDecks=((data.decks)||[]).map(d=>({id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||Date.now(),cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0,image:imgMap[c.id]||null}))}));
-    if(merge){ const rid=new Set(remoteDecks.map(d=>d.id)); DECKS=remoteDecks.concat(DECKS.filter(d=>!rid.has(d.id))); }
-    else { DECKS=remoteDecks; }
-    if(data.meta){ const m=data.meta; META.streak=m.streak||0; META.lastDay=m.lastDay||''; META.totalReviews=m.totalReviews||0; META.dailyGoal=m.dailyGoal||META.dailyGoal||10; META.history=m.history||{}; if(m.grade)META.grade=m.grade; saveMeta(); }
-    for(const d of DECKS){ await idbPut(d); }
+    const remoteDecks=((data.decks)||[]).map(d=>normalizeDeck(d,isShared,imgMap));
+    const rid=new Set(remoteDecks.map(d=>d.id));
+    const otherSpace=DECKS.filter(d=> isShared ? !isSharedDeck(d) : isSharedDeck(d) );   // 別スペースのデッキは温存
+    const kept = merge ? DECKS.filter(d=> (isShared?isSharedDeck(d):!isSharedDeck(d)) && !rid.has(d.id)) : []; // 初回接続：ローカル分も残す
+    DECKS = otherSpace.concat(remoteDecks, kept);
+    if(!isShared && data.meta){ const m=data.meta; META.streak=m.streak||0; META.lastDay=m.lastDay||''; META.totalReviews=m.totalReviews||0; META.dailyGoal=m.dailyGoal||META.dailyGoal||10; META.history=m.history||{}; if(m.grade)META.grade=m.grade; saveMeta(); }
+    for(const d of remoteDecks){ await idbPut(d); }
     applyGrade(); if(state.view==='home'||state.view==='deck')render();
   }catch(e){} finally{ _syncApplying=false; }
 }
 function scheduleSync(){ if(!syncOn()||_syncApplying||!_sb)return; clearTimeout(_syncTimer); _syncTimer=setTimeout(pushNow,1200); }
+function serializeDeck(d){ return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0}))}; }
+function serializeMeta(){ return {streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{},grade:META.grade||''}; }
 async function pushNow(){
   if(!_sb||!syncOn())return;
   try{
-    const decks=DECKS.map(d=>({id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0}))}));
-    const meta={streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{},grade:META.grade||''};
-    const {error}=await _sb.from('families').upsert({code:syncCode(),data:{decks,meta},updated_by:deviceId(),updated_at:Date.now()});
-    if(error)syncStatus='エラー：'+(error.message||'');
+    for(const sp of syncSpaces()){
+      const isShared=(sp.kind==='shared');
+      const decks=DECKS.filter(d=> isShared?isSharedDeck(d):!isSharedDeck(d) ).map(serializeDeck);
+      const data = isShared ? {decks} : {decks, meta:serializeMeta()};
+      const {error}=await _sb.from('families').upsert({code:sp.code,data,updated_by:deviceId(),updated_at:Date.now()});
+      if(error)syncStatus='エラー：'+(error.message||'');
+    }
   }catch(e){ syncStatus='エラー：'+((e&&e.message)||''); }
 }
 function parseFbConfig(text){ try{ const m=String(text).match(/\{[\s\S]*\}/); if(!m)return null; return (new Function('return ('+m[0]+')'))(); }catch(e){ return null; } }
 function syncSettingsModal(){
-  const url=syncUrl(); const key=syncKey(); const code=syncCode(); const on=syncOn();
+  const url=syncUrl(); const key=syncKey(); const code=syncCode(); const shared=syncSharedCode(); const on=syncOn();
   openModal(`<div class="mh"><h3>☁️ クラウド同期</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
     <div class="mb">
       <div class="mut" style="margin-bottom:10px">複数の端末を自動で同期します（任意）。<b>あなた自身の無料Supabase</b>を使い、データ（カードの文字・学習記録）はそこに保存されます。<b>写真とAPIキーは同期しません</b>。同じURL・キー＋同じ「家族コード」を入れた端末どうしが同期します。${on?'<br><b style="color:var(--teal-d)">現在：同期オン（'+esc(syncStatus)+'）</b>':''}</div>
@@ -1447,22 +1488,25 @@ function syncSettingsModal(){
         <input class="input" id="syncUrl" value="${esc(url)}" placeholder="https://xxxx.supabase.co" autocomplete="off"></label>
       <label class="fld"><span class="lab">🔑 anon public キー</span>
         <textarea class="ta" id="syncKey" style="min-height:80px;font-size:12px" placeholder="eyJhbGci...（anon public key）">${esc(key)}</textarea></label>
-      <label class="fld"><span class="lab">👨‍👩‍👧 家族コード（合言葉・両方の端末で同じものを）</span>
-        <div style="display:flex;gap:8px"><input class="input" id="syncCode" value="${esc(code)}" placeholder="例：fam-xxxx..." autocomplete="off"><button class="btn ghost sm" data-action="synccoderand">ランダム</button></div></label>
-      <div class="mut" style="margin-top:8px">※家族コードは合言葉です。推測されにくい長めのものに（「ランダム」推奨）。作成手順は別途ご案内します。</div>
+      <label class="fld"><span class="lab">🔒 あなた専用の合言葉（自分の端末どうしで同じ）</span>
+        <div style="display:flex;gap:8px"><input class="input" id="syncCode" value="${esc(code)}" placeholder="例：me-xxxx..." autocomplete="off"><button class="btn ghost sm" data-action="synccoderand">ランダム</button></div></label>
+      <label class="fld"><span class="lab">👨‍👩‍👧 家族共有の合言葉（家族みんなで同じ・任意）</span>
+        <div style="display:flex;gap:8px"><input class="input" id="syncShared" value="${esc(shared)}" placeholder="例：fam-xxxx...（共有しないなら空でOK）" autocomplete="off"><button class="btn ghost sm" data-action="synccoderandshared">ランダム</button></div></label>
+      <div class="mut" style="margin-top:8px">※合言葉は「部屋のカギ」です。<b>専用</b>はあなたの端末だけ同じに、<b>家族共有</b>は家族全員で同じ文字にします。推測されにくい長めのものに（「ランダム」推奨）。単語帳ごとに「自分用／家族共有」を切り替えられます。</div>
       <div class="macts">
         ${on?'<button class="btn ghost sm" data-action="syncoff">同期を解除</button>':''}
         <button class="btn block teal" data-action="syncsave">${on?'更新して再接続':'同期を有効にする'}</button>
       </div>
     </div>`);
 }
-function synccoderand(){ const el=$('#syncCode'); if(el)el.value='fam-'+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,8); }
+function synccoderand(){ const el=$('#syncCode'); if(el)el.value='me-'+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,8); }
+function synccoderandshared(){ const el=$('#syncShared'); if(el)el.value='fam-'+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,8); }
 async function syncSave(){
-  const url=$('#syncUrl').value.trim(); const key=$('#syncKey').value.trim(); const code=$('#syncCode').value.trim();
+  const url=$('#syncUrl').value.trim(); const key=$('#syncKey').value.trim(); const code=$('#syncCode').value.trim(); const shared=($('#syncShared')?$('#syncShared').value.trim():'');
   if(!/^https:\/\/.+\.supabase\.co/.test(url)){ toast('Project URL を確認（https://xxxx.supabase.co）'); return; }
   if(!key){ toast('anon public キーを入れてね'); return; }
-  if(!code){ toast('家族コードを入れてね'); return; }
-  try{ localStorage.setItem('pasha-sync-url',url); localStorage.setItem('pasha-sync-key',key); localStorage.setItem('pasha-sync-code',code); localStorage.setItem('pasha-sync-on','1'); }catch(e){}
+  if(!code&&!shared){ toast('合言葉を入れてね（専用か共有のどちらか）'); return; }
+  try{ localStorage.setItem('pasha-sync-url',url); localStorage.setItem('pasha-sync-key',key); localStorage.setItem('pasha-sync-code',code); localStorage.setItem('pasha-sync-shared',shared); localStorage.setItem('pasha-sync-on','1'); }catch(e){}
   stopSync(); closeModal(); toast('同期を有効にしました ☁️'); startSync();
 }
 function syncOff(){ try{localStorage.setItem('pasha-sync-on','');}catch(e){} stopSync(); closeModal(); toast('同期を解除しました'); }
@@ -1606,11 +1650,13 @@ document.addEventListener('click',async e=>{
     case 'syncsave': syncSave();break;
     case 'syncoff': syncOff();break;
     case 'synccoderand': synccoderand();break;
+    case 'synccoderandshared': synccoderandshared();break;
     case 'speak': speak(t.dataset.text);break;
     case 'setgoal': goalModal();break;
     case 'goalset': setGoal(t.dataset.goal);break;
     case 'open': state.deckId=id;go('deck');break;
     case 'newdeck': deckModal(null);break;
+    case 'newshareddeck': deckModal(null,{shared:true});break;
     case 'editdeck': deckModal(deckById(id||state.deckId));break;
     case 'savedeck': savedeck();break;
     case 'deldeck': deldeck();break;
