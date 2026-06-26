@@ -1005,11 +1005,14 @@ async function aiGenerateFromImage(dataURL){
     ]}]})
   });
   if(!res.ok){
+    let detail=''; try{ const ej=await res.json(); detail=(ej&&ej.error&&ej.error.message)||''; }catch(_e){}
     let msg='AIエラー ('+res.status+')';
-    if(res.status===401)msg='APIキーが正しくないようです（⚙️AI設定で確認してね）';
+    if(res.status===401)msg='APIキーが正しくないようです（⚙️AI設定で確認）';
+    else if(res.status===403)msg='このキーでは使えません。権限や支払い設定（クレジット残高）をご確認ください';
     else if(res.status===429)msg='回数の制限です。少し待ってからもう一度';
-    else if(res.status===400)msg='うまく処理できませんでした。別のモデルや写真でお試しを';
-    throw new Error(msg);
+    else if(res.status===400)msg='リクエストエラー';
+    else if(res.status>=500)msg='サーバー側のエラー。少し待って再度';
+    throw new Error(detail ? (msg+'：'+detail) : msg);
   }
   const data=await res.json();
   const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
@@ -1027,7 +1030,11 @@ async function aigen(){
     if($('#bulkModeSeg'))$$('#bulkModeSeg .segbtn').forEach(x=>x.classList.toggle('on',x.dataset.bmode==='list'));
     box.innerHTML=`<div class="mut">✅ AIが ${pairs.length}件 作りました。下で確認・修正して「カードを作る」を押してね。</div>`;
   }catch(e){
-    box.innerHTML=`<div class="panel"><div class="mut">${e&&e.message==='NO_KEY'?'⚙️AI設定でAPIキーを登録してください':esc(e&&e.message||'エラー')}</div></div>`;
+    var m=(e&&e.message)||'エラー';
+    var disp = m==='NO_KEY' ? '⚙️AI設定でAPIキーを登録してください'
+      : /failed to fetch|networkerror|load failed/i.test(m) ? '通信できませんでした。ネット接続、またはブラウザのブロック（CORS）の可能性があります。'
+      : esc(m);
+    box.innerHTML='<div class="panel"><div class="mut">⚠️ '+disp+'</div></div>';
   }
 }
 
