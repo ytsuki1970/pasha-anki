@@ -64,6 +64,7 @@
     overflow-x:hidden;
   }
   button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  [data-action],[data-judge],[data-mode],[data-opt],[data-ocrset]{cursor:pointer}
   input,textarea,select{font-family:inherit}
   img{max-width:100%;display:block}
 
@@ -188,13 +189,14 @@
   .cardrow .edit{flex:none;color:var(--ink-soft);font-size:18px;padding:6px}
 
   /* ---------- modal ---------- */
-  .modal-bg{position:fixed;inset:0;background:rgba(59,54,46,.45);backdrop-filter:blur(3px);z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fade .2s}
+  .modal-bg{position:fixed;left:0;right:0;top:0;height:var(--appvh,100vh);background:rgba(59,54,46,.45);backdrop-filter:blur(3px);z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fade .2s}
   @media(min-width:560px){.modal-bg{align-items:center;padding:20px}}
-  .modal{background:var(--paper-2);width:100%;max-width:520px;border-radius:24px 24px 0 0;box-shadow:var(--shadow-lg);max-height:92vh;overflow:auto;animation:slideup .26s cubic-bezier(.2,.9,.3,1.2)}
+  .modal{background:var(--paper-2);width:100%;max-width:520px;border-radius:24px 24px 0 0;box-shadow:var(--shadow-lg);max-height:calc(var(--appvh,100vh) - 8px);overflow:auto;animation:slideup .26s cubic-bezier(.2,.9,.3,1.2)}
   @media(min-width:560px){.modal{border-radius:24px}}
   .modal .mh{position:sticky;top:0;background:var(--paper-2);display:flex;align-items:center;gap:10px;padding:18px 18px 10px;z-index:2}
   .modal .mh h3{font-family:var(--font-display);font-size:18px;margin:0;flex:1}
   .modal .mb{padding:4px 18px 20px}
+  .macts{position:sticky;bottom:0;display:flex;gap:10px;margin-top:18px;padding:12px 0 8px;background:var(--paper-2);border-top:1px solid var(--line)}
   @keyframes slideup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
   @keyframes fade{from{opacity:0}to{opacity:1}}
 
@@ -714,7 +716,7 @@ function viewResult(){
    ========================================================= */
 let modalState={};
 function openModal(html){
-  closeModal();
+  const _ex=document.getElementById('modalbg');if(_ex)_ex.remove(); // 既存モーダルだけ消す（modalStateは保持）
   const bg=document.createElement('div');bg.className='modal-bg';bg.id='modalbg';
   bg.innerHTML=`<div class="modal">${html}</div>`;
   bg.addEventListener('click',e=>{if(e.target===bg)closeModal();});
@@ -733,16 +735,17 @@ function deckModal(deck){
     <div class="mh"><h3>${isNew?'新しい暗記帳':'暗記帳を編集'}</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
     <div class="mb">
       <label class="fld"><span class="lab">📕 なまえ</span>
-        <input class="input" id="dName" value="${esc(d.name)}" placeholder="れい：中1 英単語" maxlength="40"></label>
+        <input class="input" id="dName" value="${esc(d.name)}" placeholder="れい：中1 英単語" maxlength="40" enterkeyhint="done"></label>
       <label class="fld"><span class="lab">🎨 いろ</span></label><div class="palette" id="dPalette">${sws}</div>
       <label class="fld"><span class="lab">😀 アイコン</span></label><div class="emojipick" id="dEmoji">${eps}</div>
-      <div style="display:flex;gap:10px;margin-top:22px">
+      <div class="macts">
         ${isNew?'':'<button class="btn ghost sm" data-action="deldeck">🗑️ 削除</button>'}
         <button class="btn block" data-action="savedeck">${isNew?'つくる':'保存する'}</button>
       </div>
     </div>`);
   $('#dPalette').addEventListener('click',e=>{const sw=e.target.closest('[data-swatch]');if(!sw)return;d.color=sw.dataset.swatch;$$('#dPalette .sw').forEach(x=>x.classList.toggle('on',x===sw));});
   $('#dEmoji').addEventListener('click',e=>{const ep=e.target.closest('[data-emoji]');if(!ep)return;d.emoji=ep.dataset.emoji;$$('#dEmoji .ep').forEach(x=>x.classList.toggle('on',x===ep));});
+  $('#dName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();savedeck();}});
 }
 async function savedeck(){
   const d=modalState.deck;d.name=$('#dName').value.trim()||'なまえなし暗記帳';
@@ -775,7 +778,7 @@ function cardModal(card){
         <textarea class="ta" id="cBack" placeholder="れい：りんご / photosynthesis など">${esc(c.back)}</textarea></label>
       <label class="fld"><span class="lab">💡 ヒント（任意）</span>
         <input class="input" id="cHint" value="${esc(c.hint||'')}" placeholder="おぼえるためのヒント"></label>
-      <div style="display:flex;gap:10px;margin-top:22px">
+      <div class="macts">
         ${isNew?'':'<button class="btn ghost sm" data-action="delcard">🗑️</button>'}
         <button class="btn block teal" data-action="savecard">${isNew?'追加する':'保存する'}</button>
       </div>
@@ -1076,6 +1079,11 @@ function triggerFile(inputId,cb){const inp=$('#'+inputId);_fileCb=cb;inp.value='
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
 }
+
+/* キーボード表示時にモーダル下部のボタンが隠れないよう、見える領域の高さを反映 */
+function fitViewport(){var h=(window.visualViewport?window.visualViewport.height:window.innerHeight);document.documentElement.style.setProperty('--appvh',h+'px');}
+if(window.visualViewport){window.visualViewport.addEventListener('resize',fitViewport);window.visualViewport.addEventListener('scroll',fitViewport);}
+window.addEventListener('resize',fitViewport);window.addEventListener('orientationchange',fitViewport);fitViewport();
 
 /* =========================================================
    INIT
