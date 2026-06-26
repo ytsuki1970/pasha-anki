@@ -799,17 +799,43 @@ function cardModal(card){
 }
 function cardPhotoHTML(c){
   if(c.image){
+    const hasKey=!!loadApiKey();
     return `<img src="${c.image}" id="cImg">
       <div class="photo-actions">
-        <button class="btn ghost sm" data-action="ocr">🔎 写真の文字を読み取る</button>
-        <button class="btn ghost sm" data-action="rmphoto">🗑️ 写真を消す</button>
-      </div>`;
+        <button class="btn sm" data-action="aigencard" ${hasKey?'':'disabled'}>✨ AIで作る</button>
+        <button class="btn ghost sm" data-action="ocr">🔎 文字を読み取る</button>
+        <button class="btn ghost sm" data-action="rmphoto">🗑️</button>
+      </div>
+      ${hasKey?'<div class="mut" style="margin-top:6px">✨「AIで作る」＝写真から自動で問題化（1件なら下に入力／複数ならまとめて追加）</div>':'<div class="mut" style="margin-top:6px">✨AIは 右上⚙️→「AI設定」でキー登録すると使えます（任意）</div>'}`;
   }
-  return `<div style="font-size:40px">📷</div><div class="mut" style="margin:6px 0 12px">写真をつけると おぼえやすいよ</div>
+  const aiReady=!!loadApiKey();
+  return `<div style="font-size:40px">📷</div><div class="mut" style="margin:6px 0 12px">${aiReady?'✨ 写真を入れると「AIで作る」が使えます':'写真をつけると おぼえやすいよ'}</div>
     <div class="photo-actions">
       <button class="btn sm" data-action="cam">カメラで撮る</button>
       <button class="btn ghost sm" data-action="pick">画像をえらぶ</button>
     </div>`;
+}
+async function aigenCard(){
+  const d=deckById(state.deckId); if(!d)return;
+  const c=modalState.card; if(!c||!c.image)return;
+  if(!loadApiKey()){toast('⚙️AI設定でAPIキーを登録してね');return;}
+  const area=$('#ocrArea');
+  if(area)area.innerHTML='<div class="panel" style="margin-top:10px"><div class="mut">✨ AIが問題を作っています…（数秒〜十数秒）</div></div>';
+  try{
+    const pairs=await aiGenerateFromImage(c.image);
+    if(!pairs.length){ if(area)area.innerHTML='<div class="panel" style="margin-top:10px"><div class="mut">カードを作れませんでした。別の写真でお試しを。</div></div>'; return; }
+    if(pairs.length===1){
+      $('#cFront').value=pairs[0][0]; $('#cBack').value=pairs[0][1];
+      if(area)area.innerHTML='<div class="mut" style="margin-top:10px">✅ AIが入れました。確認して「追加する」を押してね。</div>';
+    }else{
+      for(const p of pairs){ d.cards.push({id:uid(),front:p[0],back:p[1],hint:'',image:null,box:0}); }
+      await idbPut(d); closeModal(); render(); toast('✨ AIが '+pairs.length+'枚 作成しました 🎉');
+    }
+  }catch(e){
+    var m=(e&&e.message)||'エラー';
+    var disp = m==='NO_KEY'?'⚙️AI設定でAPIキーを登録してください':(/failed to fetch|networkerror|load failed/i.test(m)?'通信できませんでした（ネット接続/CORSの可能性）':esc(m));
+    if(area)area.innerHTML='<div class="panel" style="margin-top:10px"><div class="mut">⚠️ '+disp+'</div></div>';
+  }
 }
 async function savecard(){
   const d=deckById(state.deckId);const c=modalState.card;
@@ -1204,6 +1230,7 @@ document.addEventListener('click',async e=>{
     case 'pick': triggerFile('filePick',handlePhoto);break;
     case 'rmphoto': modalState.card.image=null;refreshPhotoBox();break;
     case 'ocr': ocrToCard();break;
+    case 'aigencard': aigenCard();break;
     case 'photoBulk0': bulkModal();break;
     case 'photoBulk1': bulkModal();break;
     case 'bcam': triggerFile('fileCam',handleBulkPhoto);break;
