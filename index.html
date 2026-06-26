@@ -370,8 +370,8 @@ function openDB(){
 }
 function tx(mode){return _db.transaction(STORE,mode).objectStore(STORE);}
 function idbAll(){return new Promise((res,rej)=>{const r=tx('readonly').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});}
-function idbPut(v){return new Promise((res,rej)=>{const r=tx('readwrite').put(v);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
-function idbDel(id){return new Promise((res,rej)=>{const r=tx('readwrite').delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
+function idbPut(v){const _p=new Promise((res,rej)=>{const r=tx('readwrite').put(v);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);}); if(typeof scheduleSync==='function')scheduleSync(); return _p;}
+function idbDel(id){const _p=new Promise((res,rej)=>{const r=tx('readwrite').delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);}); if(typeof scheduleSync==='function')scheduleSync(); return _p;}
 
 /* ---------- state ---------- */
 let DECKS=[];               // [{id,name,emoji,color,createdAt,cards:[...]}]
@@ -382,7 +382,7 @@ let META=loadMeta();        // {streak, lastDay, totalReviews}
 function loadMeta(){
   try{return JSON.parse(localStorage.getItem('sugoi-meta'))||{}}catch(e){return {}}
 }
-function saveMeta(){try{localStorage.setItem('sugoi-meta',JSON.stringify(META))}catch(e){}}
+function saveMeta(){try{localStorage.setItem('sugoi-meta',JSON.stringify(META))}catch(e){} if(typeof scheduleSync==='function')scheduleSync();}
 
 /* ---------- AI設定（任意・自分のAPIキー。キーはこの端末のみに保存） ---------- */
 const AI_MODELS=[['claude-haiku-4-5','ふつう・最安（おすすめ）'],['claude-sonnet-4-6','高品質'],['claude-opus-4-8','最高品質']];
@@ -1387,6 +1387,80 @@ function finishListen(){
   toast('聞き流し かんりょう！🎧'); go('deck');
 }
 
+/* ====== クラウド同期（任意・Firebase。設定はこの端末に保存・写真とAPIキーは同期しない） ====== */
+let _fbReady=null,_syncDb=null,_syncUnsub=null,_syncApplying=false,_syncTimer=null,syncStatus='off';
+function syncCfg(){ try{return JSON.parse(localStorage.getItem('pasha-sync-config')||'null');}catch(e){return null;} }
+function syncCode(){ return localStorage.getItem('pasha-sync-code')||''; }
+function syncOn(){ return localStorage.getItem('pasha-sync-on')==='1' && !!syncCfg() && !!syncCode(); }
+function deviceId(){ let d=localStorage.getItem('pasha-device'); if(!d){d='dv'+Math.random().toString(36).slice(2,10); try{localStorage.setItem('pasha-device',d);}catch(e){}} return d; }
+function loadScript(src){ return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('読込失敗'));document.head.appendChild(s);}); }
+function loadFirebase(){ if(_fbReady)return _fbReady; _fbReady=loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js')
+  .then(()=>loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js'))
+  .then(()=>window.firebase).catch(e=>{_fbReady=null;throw e;}); return _fbReady; }
+async function startSync(){
+  if(!syncOn())return; const cfg=syncCfg();
+  try{
+    const fb=await loadFirebase();
+    if(!fb.apps||!fb.apps.length){ fb.initializeApp(cfg); }
+    _syncDb=fb.firestore();
+    const ref=_syncDb.collection('families').doc(syncCode());
+    const snap=await ref.get();
+    if(snap.exists&&snap.data()){ await applyRemote(snap.data(), true); }
+    await pushNow();
+    if(_syncUnsub)_syncUnsub();
+    _syncUnsub=ref.onSnapshot(s=>{ if(!s.exists)return; const d=s.data(); if(!d||d.updatedBy===deviceId())return; applyRemote(d,false); }, e=>{ syncStatus='エラー'; });
+    syncStatus='接続中'; toast('クラウド同期：接続しました ☁️');
+  }catch(e){ syncStatus='エラー：'+((e&&e.message)||''); toast('同期エラー：設定/ルールをご確認ください'); }
+}
+function stopSync(){ if(_syncUnsub){try{_syncUnsub();}catch(e){}_syncUnsub=null;} _syncDb=null; syncStatus='off'; }
+async function applyRemote(data, merge){
+  _syncApplying=true;
+  try{
+    const imgMap={}; DECKS.forEach(d=>d.cards.forEach(c=>{ if(c.image)imgMap[c.id]=c.image; }));
+    const remoteDecks=((data.decks)||[]).map(d=>({id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||Date.now(),cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0,image:imgMap[c.id]||null}))}));
+    if(merge){ const rid=new Set(remoteDecks.map(d=>d.id)); DECKS=remoteDecks.concat(DECKS.filter(d=>!rid.has(d.id))); }
+    else { DECKS=remoteDecks; }
+    if(data.meta){ const m=data.meta; META.streak=m.streak||0; META.lastDay=m.lastDay||''; META.totalReviews=m.totalReviews||0; META.dailyGoal=m.dailyGoal||META.dailyGoal||10; META.history=m.history||{}; if(m.grade)META.grade=m.grade; saveMeta(); }
+    for(const d of DECKS){ await idbPut(d); }
+    applyGrade(); if(state.view==='home'||state.view==='deck')render();
+  }catch(e){} finally{ _syncApplying=false; }
+}
+function scheduleSync(){ if(!syncOn()||_syncApplying||!_syncDb)return; clearTimeout(_syncTimer); _syncTimer=setTimeout(pushNow,1200); }
+async function pushNow(){
+  if(!_syncDb||!syncOn())return;
+  try{
+    const decks=DECKS.map(d=>({id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0}))}));
+    const meta={streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{},grade:META.grade||''};
+    await _syncDb.collection('families').doc(syncCode()).set({decks,meta,updatedAt:Date.now(),updatedBy:deviceId()});
+  }catch(e){ syncStatus='エラー：'+((e&&e.message)||''); }
+}
+function parseFbConfig(text){ try{ const m=String(text).match(/\{[\s\S]*\}/); if(!m)return null; return (new Function('return ('+m[0]+')'))(); }catch(e){ return null; } }
+function syncSettingsModal(){
+  const cfg=syncCfg(); const code=syncCode(); const on=syncOn();
+  openModal(`<div class="mh"><h3>☁️ クラウド同期</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div class="mut" style="margin-bottom:10px">複数の端末を自動で同期します（任意）。<b>あなた自身の無料Firebase</b>を使い、データ（カードの文字・学習記録）はそこに保存されます。<b>写真とAPIキーは同期しません</b>。同じ設定＋同じ「家族コード」を入れた端末どうしが同期します。${on?'<br><b style="color:var(--teal-d)">現在：同期オン（'+esc(syncStatus)+'）</b>':''}</div>
+      <label class="fld"><span class="lab">🔧 Firebase設定（コンソールでコピーした firebaseConfig を貼り付け）</span>
+        <textarea class="ta" id="syncCfg" style="min-height:120px;font-size:12px" placeholder="{ apiKey: '...', projectId: '...', ... }">${cfg?esc(JSON.stringify(cfg,null,1)):''}</textarea></label>
+      <label class="fld"><span class="lab">👨‍👩‍👧 家族コード（合言葉・両方の端末で同じものを）</span>
+        <div style="display:flex;gap:8px"><input class="input" id="syncCode" value="${esc(code)}" placeholder="例：fam-xxxx..." autocomplete="off"><button class="btn ghost sm" data-action="synccoderand">ランダム</button></div></label>
+      <div class="mut" style="margin-top:8px">※家族コードは合言葉です。知っている人はアクセスできるので、推測されにくい長めのものに（「ランダム」推奨）。作成手順は別途ご案内します。</div>
+      <div class="macts">
+        ${on?'<button class="btn ghost sm" data-action="syncoff">同期を解除</button>':''}
+        <button class="btn block teal" data-action="syncsave">${on?'更新して再接続':'同期を有効にする'}</button>
+      </div>
+    </div>`);
+}
+function synccoderand(){ const el=$('#syncCode'); if(el)el.value='fam-'+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,8); }
+async function syncSave(){
+  const cfg=parseFbConfig($('#syncCfg').value); const code=$('#syncCode').value.trim();
+  if(!cfg||!cfg.projectId){ toast('Firebase設定が読み取れません（貼り付けを確認）'); return; }
+  if(!code){ toast('家族コードを入れてね'); return; }
+  try{ localStorage.setItem('pasha-sync-config',JSON.stringify(cfg)); localStorage.setItem('pasha-sync-code',code); localStorage.setItem('pasha-sync-on','1'); }catch(e){}
+  stopSync(); closeModal(); toast('同期を有効にしました ☁️'); startSync();
+}
+function syncOff(){ try{localStorage.setItem('pasha-sync-on','');}catch(e){} stopSync(); closeModal(); toast('同期を解除しました'); }
+
 /* ----- menu (export/import/sample) ----- */
 function menuModal(){
   openModal(`
@@ -1399,6 +1473,7 @@ function menuModal(){
       <button class="btn block ghost" data-action="aisettings" style="margin-bottom:10px">✨ AI設定（撮るだけ自動生成）</button>
       <button class="btn block ghost" data-action="gradesel" style="margin-bottom:10px">🎓 学年：${(gradeObj()&&gradeObj().label)||'みせってい'}</button>
       <button class="btn block ghost" data-action="toggletheme" style="margin-bottom:10px">${META.theme==='dark'?'☀️ ライトモードにする':'🌙 ダークモードにする'}</button>
+      <button class="btn block ghost" data-action="syncsettings" style="margin-bottom:10px">☁️ クラウド同期${syncOn()?'（オン）':''}</button>
       <button class="btn block ghost" data-action="addsample" style="margin-bottom:10px">🎁 サンプル暗記帳を入れる</button>
       <div class="mut center" style="margin-top:16px">パシャ暗記 ・ 写真でおぼえる暗記アプリ</div>
     </div>`);
@@ -1521,6 +1596,10 @@ document.addEventListener('click',async e=>{
     case 'cropbulk': if(modalState.bulkImage)cropInline($('#bulkPhoto'),modalState.bulkImage,out=>{if(out)modalState.bulkImage=out;refreshBulkPhoto();});break;
     case 'listen': startListen();break;
     case 'listentoggle': if(state.session){state.session.paused=!state.session.paused;try{speechSynthesis.cancel();}catch(_){}render();}break;
+    case 'syncsettings': syncSettingsModal();break;
+    case 'syncsave': syncSave();break;
+    case 'syncoff': syncOff();break;
+    case 'synccoderand': synccoderand();break;
     case 'speak': speak(t.dataset.text);break;
     case 'setgoal': goalModal();break;
     case 'goalset': setGoal(t.dataset.goal);break;
@@ -1609,6 +1688,7 @@ async function init(){
   }
   render();
   if(pendingImport){ importConfirmModal(pendingImport); pendingImport=null; }
+  if(syncOn()) startSync();
 }
 init();
 </script>
