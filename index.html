@@ -300,6 +300,20 @@
   .qbig{position:relative}
   .qbig .speakbtn.inq{position:absolute;top:12px;right:12px}
   .cardrow .speakbtn{width:30px;height:30px;font-size:14px;box-shadow:none}
+  .studyopts{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 2px}
+  .optseg{display:flex;align-items:center;gap:6px;background:var(--paper-2);border-radius:12px;padding:6px 8px;box-shadow:var(--shadow)}
+  .optlbl{font-size:12px;font-weight:800;color:var(--ink-soft);margin-right:2px}
+  .optseg .segbtn{padding:6px 11px;font-size:12px}
+  /* ---------- dark mode ---------- */
+  body.dark{--paper:#221d19;--paper-2:#322c26;--ink:#F3ECE0;--ink-soft:#bcb1a0;--line:#463e35;--dot:#39322b}
+  body.dark .input,body.dark .ta{background:#2b2620;color:var(--ink)}
+  body.dark .photobox{background:#2b2620}
+  body.dark .face.back{background:#2c2620}
+  body.dark .opt.correct{background:#16332b}
+  body.dark .opt.wrong{background:#3a2330}
+  body.dark .typefb.ok{background:#16332b}
+  body.dark .typefb.ng{background:#3a2330}
+  body.dark .calc{background:#2b2620}
 </style>
 </head>
 <body>
@@ -361,7 +375,8 @@ function idbDel(id){return new Promise((res,rej)=>{const r=tx('readwrite').delet
 
 /* ---------- state ---------- */
 let DECKS=[];               // [{id,name,emoji,color,createdAt,cards:[...]}]
-let state={view:'home', deckId:null, session:null};
+let state={view:'home', deckId:null, session:null, studyOpts:{reverse:false,weak:false}};
+let pendingImport=null;
 let META=loadMeta();        // {streak, lastDay, totalReviews}
 
 function loadMeta(){
@@ -402,6 +417,12 @@ function speak(text){
     u.rate=0.95; speechSynthesis.cancel(); speechSynthesis.speak(u);
   }catch(e){}
 }
+function qSide(card){ return (state.session&&state.session.reverse)?card.back:card.front; }
+function aSide(card){ return (state.session&&state.session.reverse)?card.front:card.back; }
+function b64encUtf8(s){ return btoa(unescape(encodeURIComponent(s))); }
+function b64decUtf8(b){ return decodeURIComponent(escape(atob(b))); }
+function applyTheme(){ document.body.classList.toggle('dark',META.theme==='dark'); const m=document.querySelector('meta[name="theme-color"]'); if(m)m.setAttribute('content',META.theme==='dark'?'#221d19':'#FBF4E6'); }
+function toggleTheme(){ META.theme=(META.theme==='dark')?'light':'dark'; saveMeta(); applyTheme(); menuModal(); toast(META.theme==='dark'?'ダークモードにしました 🌙':'ライトモードにしました ☀️'); }
 
 function uid(){return 'id'+Math.random().toString(36).slice(2,10)+(performance.now()|0).toString(36);}
 function deckById(id){return DECKS.find(d=>d.id===id);}
@@ -529,6 +550,7 @@ function viewDeck(){
   const d=deckById(state.deckId); if(!d) {go('home');return '';}
   const {c,dd}=colorVars(d.color);const col=colorVars(d.color);
   const pct=deckPct(d);
+  const rev=!!(state.studyOpts&&state.studyOpts.reverse); const weak=!!(state.studyOpts&&state.studyOpts.weak);
   const cards=d.cards.map(card=>{
     const box=card.box||0;const ok=box>=MASTER_BOX;
     return `<div class="cardrow rise" data-action="editcard" data-id="${card.id}">
@@ -547,12 +569,24 @@ function viewDeck(){
   <button class="backbtn" data-action="home">‹ もどる</button>
   <div class="deckhero rise" style="background:linear-gradient(140deg,${col.c},${col.d})">
     <div class="tools">
+      <button class="iconbtn" data-action="shareqr" title="QRで共有">📲</button>
       <button class="iconbtn" data-action="editdeck" title="暗記帳を編集">✏️</button>
     </div>
     <span class="emoji">${esc(d.emoji||'📘')}</span>
     <h1>${esc(d.name)}</h1>
     <div class="sub">カード ${d.cards.length}まい ・ おぼえた ${masteredCount(d)} ・ ${pct}%</div>
     <span class="deco">${esc(d.emoji||'📘')}</span>
+  </div>
+
+  <div class="studyopts rise">
+    <div class="optseg"><span class="optlbl">向き</span>
+      <button class="segbtn ${rev?'':'on'}" data-action="optrev" data-v="0">ふつう</button>
+      <button class="segbtn ${rev?'on':''}" data-action="optrev" data-v="1">⇄ 逆</button>
+    </div>
+    <div class="optseg"><span class="optlbl">範囲</span>
+      <button class="segbtn ${weak?'':'on'}" data-action="optweak" data-v="0">ぜんぶ</button>
+      <button class="segbtn ${weak?'on':''}" data-action="optweak" data-v="1">にがてだけ</button>
+    </div>
   </div>
 
   <div class="moderow rise">
@@ -579,12 +613,14 @@ function emptyCards(){
    ========================================================= */
 function startSession(mode){
   const d=deckById(state.deckId);
-  let cards=d.cards.slice();
-  // 未習得を優先しつつシャッフル
-  cards.sort((a,b)=>(a.box||0)-(b.box||0));
-  const groups={};cards.forEach(c=>{(groups[c.box||0]=groups[c.box||0]||[]).push(c);});
-  cards=Object.keys(groups).sort((a,b)=>a-b).flatMap(k=>shuffle(groups[k]));
-  state.session={mode,cards,idx:0,correct:0,wrong:0,results:[],deckIds:[state.deckId],review:false};
+  const opts=state.studyOpts||{};
+  let pool=opts.weak?d.cards.filter(c=>(c.box||0)<MASTER_BOX):d.cards.slice();
+  if(!pool.length){toast(opts.weak?'にがてカードはありません！ぜんぶおぼえてる？🎉':'カードがありません');return;}
+  if(mode==='quiz'&&pool.length<2){toast('クイズには2枚以上ひつようです');return;}
+  pool.sort((a,b)=>(a.box||0)-(b.box||0));
+  const groups={};pool.forEach(c=>{(groups[c.box||0]=groups[c.box||0]||[]).push(c);});
+  const cards=Object.keys(groups).sort((a,b)=>a-b).flatMap(k=>shuffle(groups[k]));
+  state.session={mode,cards,idx:0,correct:0,wrong:0,results:[],deckIds:[state.deckId],review:false,reverse:!!opts.reverse};
   go(mode);
 }
 function startReview(){
@@ -610,17 +646,17 @@ function viewFlash(){
       <div class="flip-inner" id="flipInner">
         <div class="face front">
           <span class="tag">もんだい</span>
-          ${card.front?`<button class="speakbtn" data-action="speak" data-text="${esc(card.front)}">🔊</button>`:''}
+          ${qSide(card)?`<button class="speakbtn" data-action="speak" data-text="${esc(qSide(card))}">🔊</button>`:''}
           ${card.image?`<img src="${card.image}">`:''}
-          <div class="big">${esc(card.front)}</div>
+          <div class="big">${esc(qSide(card))}</div>
           ${card.hint?`<div class="hint">💡 ${esc(card.hint)}</div>`:''}
           <div class="tapnote">タップで こたえを見る 👆</div>
         </div>
         <div class="face back">
           <span class="tag">こたえ</span>
-          ${card.back?`<button class="speakbtn" data-action="speak" data-text="${esc(card.back)}">🔊</button>`:''}
-          <div class="big">${esc(card.back)}</div>
-          ${card.front?`<div class="hint">${esc(card.front)}</div>`:''}
+          ${aSide(card)?`<button class="speakbtn" data-action="speak" data-text="${esc(aSide(card))}">🔊</button>`:''}
+          <div class="big">${esc(aSide(card))}</div>
+          ${qSide(card)?`<div class="hint">${esc(qSide(card))}</div>`:''}
         </div>
       </div>
     </div>
@@ -652,15 +688,17 @@ function wireFlash(){
 /* =========================================================
    STUDY: QUIZ (4択)
    ========================================================= */
-function buildOptions(card,deck){
-  const others=shuffle(deck.cards.filter(c=>c.id!==card.id && c.back && c.back!==card.back));
-  const opts=[card.back];
-  for(const o of others){if(opts.length>=4)break;if(!opts.includes(o.back))opts.push(o.back);}
+function buildOptions(card){
+  const deck=deckById(state.deckId);
+  const correct=aSide(card);
+  const others=shuffle(deck.cards.filter(c=>c.id!==card.id && aSide(c) && aSide(c)!==correct));
+  const opts=[correct];
+  for(const o of others){if(opts.length>=4)break;const v=aSide(o);if(!opts.includes(v))opts.push(v);}
   return shuffle(opts);
 }
 function viewQuiz(){
-  const s=state.session;const d=deckById(state.deckId);const card=s.cards[s.idx];
-  if(!s.opts) s.opts=buildOptions(card,d);
+  const s=state.session;const card=s.cards[s.idx];
+  if(!s.opts) s.opts=buildOptions(card);
   const letters=['A','B','C','D'];
   const opts=s.opts.map((o,i)=>`<button class="opt" data-opt="${esc(o)}"><span class="k">${letters[i]}</span><span>${esc(o)}</span></button>`).join('');
   return `
@@ -671,10 +709,10 @@ function viewQuiz(){
       <span class="study-count">${s.idx+1}/${s.cards.length}</span>
     </div>
     <div class="qbig">
-      ${card.front?`<button class="speakbtn inq" data-action="speak" data-text="${esc(card.front)}">🔊</button>`:''}
-      <div class="ask">この いみは？</div>
+      ${qSide(card)?`<button class="speakbtn inq" data-action="speak" data-text="${esc(qSide(card))}">🔊</button>`:''}
+      <div class="ask">${s.reverse?'こたえは どれ？':'この いみは？'}</div>
       ${card.image?`<img src="${card.image}">`:''}
-      <div class="q">${esc(card.front)}</div>
+      <div class="q">${esc(qSide(card))}</div>
     </div>
     <div id="opts">${opts}</div>
     <div class="center" id="next" style="display:none;margin-top:6px">
@@ -683,12 +721,12 @@ function viewQuiz(){
   </div>`;
 }
 function wireQuiz(){
-  const s=state.session;const card=s.cards[s.idx];
+  const s=state.session;const card=s.cards[s.idx];const ans=aSide(card);
   $$('#opts .opt').forEach(b=>b.addEventListener('click',()=>{
     if(s.answered)return; s.answered=true;
-    const chosen=b.dataset.opt;const correct=chosen===card.back;
+    const chosen=b.dataset.opt;const correct=chosen===ans;
     $$('#opts .opt').forEach(x=>{
-      if(x.dataset.opt===card.back)x.classList.add('correct');
+      if(x.dataset.opt===ans)x.classList.add('correct');
       else if(x===b)x.classList.add('wrong');
       else x.classList.add('dim');
       x.style.pointerEvents='none';
@@ -722,10 +760,10 @@ function viewType(){
       <span class="study-count">${s.idx+1}/${s.cards.length}</span>
     </div>
     <div class="qbig">
-      ${card.front?`<button class="speakbtn inq" data-action="speak" data-text="${esc(card.front)}">🔊</button>`:''}
+      ${qSide(card)?`<button class="speakbtn inq" data-action="speak" data-text="${esc(qSide(card))}">🔊</button>`:''}
       <div class="ask">こたえを にゅうりょく</div>
       ${card.image?`<img src="${card.image}">`:''}
-      <div class="q">${esc(card.front)}</div>
+      <div class="q">${esc(qSide(card))}</div>
       ${card.hint?`<div class="mut" style="margin-top:8px">💡 ${esc(card.hint)}</div>`:''}
     </div>
     <input class="input" id="typeIn" placeholder="ここに こたえを かいてね" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="done">
@@ -743,10 +781,10 @@ function typecheck(){
   const s=state.session;const card=s.cards[s.idx];const inp=$('#typeIn');
   if(s.answered){typeNext();return;}
   s.answered=true;
-  const ok=normalize(inp.value)===normalize(card.back) && inp.value.trim()!=='';
+  const ok=normalize(inp.value)===normalize(aSide(card)) && inp.value.trim()!=='';
   const fb=$('#typefb');inp.disabled=true;
   if(ok){fb.className='typefb ok';fb.innerHTML='⭕ せいかい！';card.box=Math.min(5,(card.box||0)+1);s.correct++;burst(0.5,0.4);}
-  else{fb.className='typefb ng';fb.innerHTML='✕ おしい！<span class="ans">こたえ：'+esc(card.back)+'</span>';card.box=1;s.wrong++;}
+  else{fb.className='typefb ng';fb.innerHTML='✕ おしい！<span class="ans">こたえ：'+esc(aSide(card))+'</span>';card.box=1;s.wrong++;}
   card.last=Date.now();
   const btns=$('#typebtns');
   btns.innerHTML = (ok?'':'<button class="btn ghost block" data-action="typeforgive" style="margin-bottom:10px">やっぱり正解にする ⭕</button>')
@@ -1177,6 +1215,45 @@ function goalModal(){
 }
 function setGoal(n){ const g=parseInt(n,10)||10; META.dailyGoal=g; saveMeta(); closeModal(); go('home'); toast('目標を '+g+'枚 にしました 🎯'); }
 
+/* ----- QR共有・受け取り（テキストのみ・写真は除く） ----- */
+let _qrReady=null;
+function loadQR(){ if(_qrReady)return _qrReady; _qrReady=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';s.onload=()=>res(window.qrcode);s.onerror=()=>{_qrReady=null;rej(new Error('load'));};document.head.appendChild(s);}); return _qrReady; }
+async function shareQR(){
+  const d=deckById(state.deckId); if(!d)return;
+  const slim={n:d.name,e:d.emoji,co:d.color,c:d.cards.map(c=>[c.front,c.back,c.hint||''])};
+  const url=location.origin+location.pathname+'#d='+b64encUtf8(JSON.stringify(slim));
+  modalState={shareUrl:url};
+  openModal(`<div class="mh"><h3>📲 QRで共有</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div class="mut" style="margin-bottom:10px">相手のスマホのカメラでこのQRを読み取ると、この暗記帳（カード${d.cards.length}枚）を取り込めます。※写真は共有されません。</div>
+      <div id="qrbox" style="text-align:center;min-height:200px;display:grid;place-items:center">作成中…</div>
+      <button class="btn block ghost sm" data-action="copylink" style="margin-top:12px">🔗 リンクをコピー</button>
+      <div class="mut" style="margin-top:8px">QRが読めないときは「リンクをコピー」して相手に送ってもOK。</div>
+    </div>`);
+  const box=$('#qrbox'); if(!box)return;
+  if(url.length>1800){ box.innerHTML='<div class="mut">カードが多くてQRに収まりません。「リンクをコピー」か、メニューの「書き出し」で共有してください。</div>'; return; }
+  try{
+    const qrcode=await loadQR(); const qr=qrcode(0,'M'); qr.addData(url); qr.make();
+    box.innerHTML='<img alt="QR" src="'+qr.createDataURL(6,8)+'" style="width:230px;height:230px;image-rendering:pixelated;background:#fff;border-radius:8px;padding:6px">';
+  }catch(e){ box.innerHTML='<div class="mut">QRの作成に失敗しました（初回はネット接続が必要）。「リンクをコピー」をお使いください。</div>'; }
+}
+function copylink(){ const u=modalState&&modalState.shareUrl; if(!u){toast('リンクがありません');return;} if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(()=>toast('リンクをコピーしました 🔗')).catch(()=>toast('コピーできませんでした'));}else{toast('この環境ではコピー非対応です');} }
+function importConfirmModal(slim){
+  const n=((slim&&slim.c)||[]).length;
+  openModal(`<div class="mh"><h3>📥 暗記帳を読み込む</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div style="font-weight:800;font-size:16px;margin-bottom:6px">${esc((slim&&slim.e)||'📘')} ${esc((slim&&slim.n)||'暗記帳')}</div>
+      <div class="mut" style="margin-bottom:14px">カード ${n}枚 を あなたの「パシャ暗記」に追加します。よろしいですか？</div>
+      <button class="btn block teal" data-action="doimport">この暗記帳を取り込む</button>
+    </div>`);
+  modalState={importSlim:slim};
+}
+async function doImport(){
+  const slim=modalState&&modalState.importSlim; if(!slim)return;
+  const d={id:uid(),name:slim.n||'読み込んだ暗記帳',emoji:slim.e||'📘',color:slim.co||'sky',createdAt:Date.now(),cards:((slim.c)||[]).map(a=>({id:uid(),front:(a&&a[0])||'',back:(a&&a[1])||'',hint:(a&&a[2])||'',image:null,box:0}))};
+  DECKS.push(d); await idbPut(d); closeModal(); go('home'); toast('「'+d.name+'」を取り込みました 🎉');
+}
+
 /* ----- menu (export/import/sample) ----- */
 function menuModal(){
   openModal(`
@@ -1187,8 +1264,9 @@ function menuModal(){
       <button class="btn block ghost" data-action="import" style="margin-bottom:10px">📥 読み込む（ファイルから）</button>
       <hr class="dash">
       <button class="btn block ghost" data-action="aisettings" style="margin-bottom:10px">✨ AI設定（撮るだけ自動生成）</button>
+      <button class="btn block ghost" data-action="toggletheme" style="margin-bottom:10px">${META.theme==='dark'?'☀️ ライトモードにする':'🌙 ダークモードにする'}</button>
       <button class="btn block ghost" data-action="addsample" style="margin-bottom:10px">🎁 サンプル暗記帳を入れる</button>
-      <div class="mut center" style="margin-top:16px">パシャ暗記 v2 ・ 写真でおぼえる暗記アプリ</div>
+      <div class="mut center" style="margin-top:16px">パシャ暗記 ・ 写真でおぼえる暗記アプリ</div>
     </div>`);
 }
 function exportData(){
@@ -1297,6 +1375,12 @@ document.addEventListener('click',async e=>{
   switch(a){
     case 'home': go('home');break;
     case 'review': startReview();break;
+    case 'optrev': (state.studyOpts=state.studyOpts||{}).reverse=(t.dataset.v==='1');render();break;
+    case 'optweak': (state.studyOpts=state.studyOpts||{}).weak=(t.dataset.v==='1');render();break;
+    case 'shareqr': shareQR();break;
+    case 'copylink': copylink();break;
+    case 'doimport': doImport();break;
+    case 'toggletheme': toggleTheme();break;
     case 'speak': speak(t.dataset.text);break;
     case 'setgoal': goalModal();break;
     case 'goalset': setGoal(t.dataset.goal);break;
@@ -1360,8 +1444,16 @@ window.addEventListener('resize',fitViewport);window.addEventListener('orientati
 /* =========================================================
    INIT
    ========================================================= */
+function maybeImportFromHash(){
+  const h=location.hash||'';
+  if(h.indexOf('#d=')!==0)return;
+  try{ pendingImport=JSON.parse(b64decUtf8(h.slice(3))); }catch(e){}
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){ location.hash=''; }
+}
 async function init(){
+  applyTheme();
   initConfetti();
+  maybeImportFromHash();
   try{
     await openDB();
     DECKS=await idbAll();
@@ -1375,6 +1467,7 @@ async function init(){
     return;
   }
   render();
+  if(pendingImport){ importConfirmModal(pendingImport); pendingImport=null; }
 }
 init();
 </script>
