@@ -238,7 +238,7 @@
   .face.back{transform:rotateY(180deg);background:#FFFBEF}
   .face.back .tag{background:var(--teal)}
   .face img{max-height:170px;border-radius:14px;margin-bottom:14px;box-shadow:var(--shadow)}
-  .face .big{font-family:var(--font-display);font-size:30px;line-height:1.35;font-weight:400;word-break:break-word}
+  .face .big{font-family:var(--font-display);font-size:calc(30px*var(--bigscale,1));line-height:1.35;font-weight:400;word-break:break-word}
   .face .hint{margin-top:12px;color:var(--ink-soft);font-size:14px;font-weight:700}
   .tapnote{position:absolute;bottom:16px;left:0;right:0;color:var(--ink-soft);font-size:12px;font-weight:700;opacity:.8}
 
@@ -255,7 +255,7 @@
 
   .qbig{background:var(--paper-2);border-radius:22px;box-shadow:var(--shadow);padding:26px 20px;text-align:center;margin-bottom:16px}
   .qbig img{max-height:150px;margin:0 auto 12px;border-radius:12px}
-  .qbig .q{font-family:var(--font-display);font-size:26px;font-weight:400;word-break:break-word}
+  .qbig .q{font-family:var(--font-display);font-size:calc(26px*var(--bigscale,1));font-weight:400;word-break:break-word}
   .qbig .ask{color:var(--ink-soft);font-weight:700;font-size:13px;margin-bottom:8px}
 
   .typefb{border-radius:16px;padding:14px 16px;margin-top:14px;font-weight:800;display:none}
@@ -424,6 +424,28 @@ function b64decUtf8(b){ return decodeURIComponent(escape(atob(b))); }
 function applyTheme(){ document.body.classList.toggle('dark',META.theme==='dark'); const m=document.querySelector('meta[name="theme-color"]'); if(m)m.setAttribute('content',META.theme==='dark'?'#221d19':'#FBF4E6'); }
 function toggleTheme(){ META.theme=(META.theme==='dark')?'light':'dark'; saveMeta(); applyTheme(); menuModal(); toast(META.theme==='dark'?'ダークモードにしました 🌙':'ライトモードにしました ☀️'); }
 
+/* ---------- 学年に合わせた最適化 ---------- */
+const GRADES=[
+  {k:'e12',label:'小1・2',scale:1.18,ai:'小学1〜2年生'},
+  {k:'e34',label:'小3・4',scale:1.12,ai:'小学3〜4年生'},
+  {k:'e56',label:'小5・6',scale:1.06,ai:'小学5〜6年生'},
+  {k:'jh',label:'中学生',scale:1.0,ai:'中学生'},
+  {k:'hs',label:'高校生',scale:0.98,ai:'高校生'},
+  {k:'ad',label:'大人',scale:1.0,ai:'大人（資格・語学など）'}
+];
+function gradeObj(){ return GRADES.find(g=>g.k===META.grade)||null; }
+function applyGrade(){ const g=gradeObj(); document.documentElement.style.setProperty('--bigscale', g?g.scale:1); }
+function gradeModal(){
+  const cur=META.grade;
+  const opts=GRADES.map(g=>`<button class="btn ${g.k===cur?'':'ghost'} sm" data-action="gradeset" data-g="${g.k}">${g.label}</button>`).join('');
+  openModal(`<div class="mh"><h3>🎓 学年をえらぶ</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div class="mut" style="margin-bottom:12px">学年に合わせて、文字の大きさやAIが作る問題の難しさを調整します。あとから変更できます。</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${opts}</div>
+    </div>`);
+}
+function setGrade(k){ META.grade=k; saveMeta(); applyGrade(); closeModal(); go('home'); const g=gradeObj(); toast((g?g.label:'')+' に合わせました 🎓'); }
+
 function uid(){return 'id'+Math.random().toString(36).slice(2,10)+(performance.now()|0).toString(36);}
 function deckById(id){return DECKS.find(d=>d.id===id);}
 function todayStr(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
@@ -473,6 +495,7 @@ function render(){
   else if(state.view==='flash') app.innerHTML=viewFlash();
   else if(state.view==='quiz') app.innerHTML=viewQuiz();
   else if(state.view==='type') app.innerHTML=viewType();
+  else if(state.view==='listen') app.innerHTML=viewListen();
   else if(state.view==='result') app.innerHTML=viewResult();
   window.scrollTo(0,0);
   // entrance animation
@@ -480,9 +503,10 @@ function render(){
   if(state.view==='flash') wireFlash();
   if(state.view==='quiz') wireQuiz();
   if(state.view==='type') wireType();
+  if(state.view==='listen') wireListen();
 }
 
-function go(view,opts={}){state.view=view;if(view==='home')state.deckId=null;Object.assign(state,opts);render();}
+function go(view,opts={}){ if(state.view==='listen'&&view!=='listen'){listenToken++;try{speechSynthesis.cancel();}catch(_){}} state.view=view;if(view==='home')state.deckId=null;Object.assign(state,opts);render();}
 
 /* ---------- HOME ---------- */
 function viewHome(){
@@ -516,6 +540,8 @@ function viewHome(){
   ${DECKS.length?(due>0
     ? `<button class="btn lg block teal rise" data-action="review" style="margin:8px 0 2px">📅 今日のおさらい（${due}枚）</button>`
     : `<div class="panel rise" style="text-align:center;margin:8px 0 2px;font-weight:800">✅ 今日のおさらいは ぜんぶ完了！えらい！</div>`):''}
+
+  ${!META.grade?`<button class="btn block ghost sm rise" data-action="gradesel" style="margin:6px 0 2px">🎓 学年をえらぶ（文字やAIが学年に合います）</button>`:''}
 
   <div class="stats rise">
     <div class="stat"><div class="n">${streak}</div><div class="l">れんぞく日数 🔥</div><span class="ic">🔥</span></div>
@@ -594,6 +620,8 @@ function viewDeck(){
     <button class="modebtn t" data-action="start" data-mode="quiz" ${d.cards.length>=2?'':'disabled'}><span class="e">✅</span>4たく<br>クイズ</button>
     <button class="modebtn s" data-action="start" data-mode="type" ${d.cards.length?'':'disabled'}><span class="e">⌨️</span>タイピング</button>
   </div>
+
+  <button class="btn block sky rise" data-action="listen" ${d.cards.length?'':'disabled'} style="margin:0 0 4px">🎧 聞き流し（自動で読み上げ）</button>
 
   <div style="display:flex;gap:10px;margin:14px 0">
     <button class="btn block" data-action="newcard">＋ カードを追加</button>
@@ -915,6 +943,7 @@ function cardPhotoHTML(c){
       <div class="photo-actions">
         <button class="btn sm" data-action="aigencard" ${hasKey?'':'disabled'}>✨ AIで作る</button>
         <button class="btn ghost sm" data-action="ocr">🔎 文字を読み取る</button>
+        <button class="btn ghost sm" data-action="cropcard">✂️ 切り抜く</button>
         <button class="btn ghost sm" data-action="rmphoto">🗑️</button>
       </div>
       ${hasKey?'<div class="mut" style="margin-top:6px">✨「AIで作る」＝写真から自動で問題化（1件なら下に入力／複数ならまとめて追加）</div>':'<div class="mut" style="margin-top:6px">✨AIは 右上⚙️→「AI設定」でキー登録すると使えます（任意）</div>'}`;
@@ -1052,6 +1081,7 @@ function bulkPhotoHTML(){
       <div class="photo-actions">
         <button class="btn sm" data-action="aigen" ${hasKey?'':'disabled'}>✨ AIで問題を作る</button>
         <button class="btn ghost sm" data-action="bocr">🔎 文字を読み取る（無料）</button>
+        <button class="btn ghost sm" data-action="cropbulk">✂️ 切り抜く</button>
         <button class="btn ghost sm" data-action="brm">🗑️</button>
       </div>
       ${hasKey?'':'<div class="mut" style="margin-top:8px">✨AIを使うには 右上⚙️→「AI設定」でキー登録（任意）</div>'}`;
@@ -1137,7 +1167,8 @@ async function aiGenerateFromImage(dataURL){
   const comma=dataURL.indexOf(',');
   const b64=dataURL.slice(comma+1);
   const mt=(dataURL.slice(5,comma).split(';')[0])||'image/jpeg';
-  const prompt='あなたは小中高生の学習を助ける先生です。この画像（教科書・ノート・単語リストなど）から暗記カードを作ってください。各カードは front（覚える語・問い）と back（答え・意味）のペアです。画像内の主要な学習項目を漏れなく、子どもが覚えやすい簡潔な形に。英単語なら front=英語 / back=日本語。社会や理科の用語は front=用語や問い / back=答えや説明。出力は次のJSONのみで、前後に説明やマークダウンを一切付けないこと:\n{"cards":[{"front":"...","back":"..."}]}';
+  const _g=gradeObj(); const _gh=_g?('対象は'+_g.ai+'。その学年に合った難しさ・言葉づかい・分量で作ってください。'):'';
+  const prompt='あなたは小中高生の学習を助ける先生です。'+_gh+'この画像（教科書・ノート・単語リストなど）から暗記カードを作ってください。各カードは front（覚える語・問い）と back（答え・意味）のペアです。画像内の主要な学習項目を漏れなく、子どもが覚えやすい簡潔な形に。英単語なら front=英語 / back=日本語。社会や理科の用語は front=用語や問い / back=答えや説明。出力は次のJSONのみで、前後に説明やマークダウンを一切付けないこと:\n{"cards":[{"front":"...","back":"..."}]}';
   const res=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -1254,6 +1285,108 @@ async function doImport(){
   DECKS.push(d); await idbPut(d); closeModal(); go('home'); toast('「'+d.name+'」を取り込みました 🎉');
 }
 
+/* ----- 画像トリミング（端末内・モーダル内で完結） ----- */
+function cropInline(container, src, onApply){
+  if(!container)return;
+  container.innerHTML=`
+    <div class="mut" style="margin-bottom:8px">わくをドラッグで移動／右下で大きさ調整</div>
+    <div id="cropWrap" style="position:relative;touch-action:none;user-select:none;max-width:100%;margin:0 auto;line-height:0;border-radius:12px;overflow:hidden;background:#0003">
+      <img id="cropImg" src="${src}" style="display:block;width:100%;pointer-events:none">
+      <div id="cropRect" style="position:absolute;border:2px solid #fff;box-shadow:0 0 0 3000px rgba(0,0,0,.5);box-sizing:border-box">
+        <div style="position:absolute;right:-12px;bottom:-12px;width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--pink)"></div>
+      </div>
+    </div>
+    <div class="photo-actions" style="margin-top:10px">
+      <button class="btn sm teal" id="cropDo">✂️ 切り抜く</button>
+      <button class="btn ghost sm" id="cropCancel">↩︎ もどる</button>
+    </div>`;
+  const wrap=container.querySelector('#cropWrap'), img=container.querySelector('#cropImg'), r=container.querySelector('#cropRect');
+  let w=0,h=0,rx=0,ry=0,rw=0,rh=0,mode=null,sx=0,sy=0,ox=0,oy=0,ow=0,oh=0;
+  function draw(){r.style.left=rx+'px';r.style.top=ry+'px';r.style.width=rw+'px';r.style.height=rh+'px';}
+  function setup(){ w=img.clientWidth;h=img.clientHeight; if(!w){setTimeout(setup,60);return;} rx=w*0.08;ry=h*0.08;rw=w*0.84;rh=h*0.84; draw(); }
+  function pt(e){const b=wrap.getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top};}
+  wrap.addEventListener('pointerdown',e=>{const p=pt(e);
+    const nearH=(p.x>rx+rw-32&&p.y>ry+rh-32);
+    const inside=(p.x>=rx&&p.x<=rx+rw&&p.y>=ry&&p.y<=ry+rh);
+    if(nearH)mode='resize'; else if(inside)mode='move'; else return;
+    sx=p.x;sy=p.y;ox=rx;oy=ry;ow=rw;oh=rh; try{wrap.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault();
+  });
+  wrap.addEventListener('pointermove',e=>{ if(!mode)return; const p=pt(e),dx=p.x-sx,dy=p.y-sy;
+    if(mode==='move'){rx=Math.max(0,Math.min(w-rw,ox+dx));ry=Math.max(0,Math.min(h-rh,oy+dy));}
+    else{rw=Math.max(30,Math.min(w-rx,ow+dx));rh=Math.max(30,Math.min(h-ry,oh+dy));} draw();
+  });
+  wrap.addEventListener('pointerup',()=>{mode=null;});
+  container.querySelector('#cropDo').addEventListener('click',()=>{
+    const im=new Image();
+    im.onload=()=>{ if(!w){onApply(null);return;} const scx=im.naturalWidth/w, scy=im.naturalHeight/h;
+      const cw=Math.max(1,Math.round(rw*scx)), ch=Math.max(1,Math.round(rh*scy));
+      const cv=document.createElement('canvas');cv.width=cw;cv.height=ch;
+      cv.getContext('2d').drawImage(im,Math.round(rx*scx),Math.round(ry*scy),cw,ch,0,0,cw,ch);
+      onApply(cv.toDataURL('image/jpeg',0.82));
+    };
+    im.onerror=()=>onApply(null); im.src=src;
+  });
+  container.querySelector('#cropCancel').addEventListener('click',()=>onApply(null));
+  if(img.complete&&img.clientWidth)setup(); else img.addEventListener('load',setup);
+}
+
+/* ----- 聞き流しモード（自動で読み上げ） ----- */
+let listenToken=0;
+function startListen(){
+  const d=deckById(state.deckId); if(!d)return; const opts=state.studyOpts||{};
+  let pool=opts.weak?d.cards.filter(c=>(c.box||0)<MASTER_BOX):d.cards.slice();
+  if(!pool.length){toast(opts.weak?'にがてカードはありません🎉':'カードがありません');return;}
+  state.session={mode:'listen',cards:shuffle(pool),idx:0,correct:0,wrong:0,deckIds:[state.deckId],review:false,reverse:!!opts.reverse,phase:'q',paused:false};
+  go('listen');
+}
+function viewListen(){
+  const s=state.session;const card=s.cards[s.idx];
+  return `<div class="study">
+    <div class="study-top">
+      <button class="iconbtn" data-action="open" data-id="${state.deckId}">✕</button>
+      <div class="progress"><i style="width:${s.idx/s.cards.length*100}%"></i></div>
+      <span class="study-count">${s.idx+1}/${s.cards.length}</span>
+    </div>
+    <div class="qbig" style="min-height:220px;display:grid;place-items:center">
+      <div>
+        <div class="ask">🎧 聞き流し中…</div>
+        <div class="q" id="listenQ" style="margin:12px 0">${esc(qSide(card))}</div>
+        <div class="big" id="listenA" style="font-family:var(--font-display);color:var(--teal-d);min-height:1.4em">${s.phase==='a'?esc(aSide(card)):''}</div>
+      </div>
+    </div>
+    <div class="judge">
+      <button class="btn ghost" data-action="listentoggle">${s.paused?'▶ さいせい':'⏸ いちじ停止'}</button>
+      <button class="btn ghost" data-action="open" data-id="${state.deckId}">やめる</button>
+    </div>
+  </div>`;
+}
+function listenDur(t){ return Math.min(6000, Math.max(1200, String(t||'').length*130+700)); }
+function paintListen(){
+  const s=state.session; if(!s||s.mode!=='listen')return; const card=s.cards[s.idx]; if(!card)return;
+  const c=$('.study-count'); if(c)c.textContent=(s.idx+1)+'/'+s.cards.length;
+  const p=$('.progress i'); if(p)p.style.width=(s.idx/s.cards.length*100)+'%';
+  const q=$('#listenQ'); if(q)q.textContent=qSide(card);
+  const a=$('#listenA'); if(a)a.textContent=(s.phase==='a')?aSide(card):'';
+}
+function wireListen(){ listenToken++; const my=listenToken; listenTick(my); }
+function listenTick(tok){
+  if(tok!==listenToken)return; const s=state.session; if(!s||s.mode!=='listen'||s.paused)return;
+  if(s.idx>=s.cards.length){ finishListen(); return; }
+  const card=s.cards[s.idx];
+  s.phase='q'; paintListen(); speak(qSide(card));
+  setTimeout(()=>{ if(tok!==listenToken||s.paused)return;
+    s.phase='a'; paintListen(); speak(aSide(card));
+    setTimeout(()=>{ if(tok!==listenToken||s.paused)return; s.idx++;
+      setTimeout(()=>listenTick(tok), 250);
+    }, listenDur(aSide(card))+400);
+  }, listenDur(qSide(card))+300);
+}
+function finishListen(){
+  const s=state.session; const n=s?s.cards.length:0;
+  bumpStreak(); META.totalReviews=(META.totalReviews||0)+n; saveMeta(); addStudyCount(n);
+  toast('聞き流し かんりょう！🎧'); go('deck');
+}
+
 /* ----- menu (export/import/sample) ----- */
 function menuModal(){
   openModal(`
@@ -1264,6 +1397,7 @@ function menuModal(){
       <button class="btn block ghost" data-action="import" style="margin-bottom:10px">📥 読み込む（ファイルから）</button>
       <hr class="dash">
       <button class="btn block ghost" data-action="aisettings" style="margin-bottom:10px">✨ AI設定（撮るだけ自動生成）</button>
+      <button class="btn block ghost" data-action="gradesel" style="margin-bottom:10px">🎓 学年：${(gradeObj()&&gradeObj().label)||'みせってい'}</button>
       <button class="btn block ghost" data-action="toggletheme" style="margin-bottom:10px">${META.theme==='dark'?'☀️ ライトモードにする':'🌙 ダークモードにする'}</button>
       <button class="btn block ghost" data-action="addsample" style="margin-bottom:10px">🎁 サンプル暗記帳を入れる</button>
       <div class="mut center" style="margin-top:16px">パシャ暗記 ・ 写真でおぼえる暗記アプリ</div>
@@ -1381,6 +1515,12 @@ document.addEventListener('click',async e=>{
     case 'copylink': copylink();break;
     case 'doimport': doImport();break;
     case 'toggletheme': toggleTheme();break;
+    case 'gradesel': gradeModal();break;
+    case 'gradeset': setGrade(t.dataset.g);break;
+    case 'cropcard': if(modalState.card&&modalState.card.image)cropInline($('#photobox'),modalState.card.image,out=>{if(out)modalState.card.image=out;refreshPhotoBox();});break;
+    case 'cropbulk': if(modalState.bulkImage)cropInline($('#bulkPhoto'),modalState.bulkImage,out=>{if(out)modalState.bulkImage=out;refreshBulkPhoto();});break;
+    case 'listen': startListen();break;
+    case 'listentoggle': if(state.session){state.session.paused=!state.session.paused;try{speechSynthesis.cancel();}catch(_){}render();}break;
     case 'speak': speak(t.dataset.text);break;
     case 'setgoal': goalModal();break;
     case 'goalset': setGoal(t.dataset.goal);break;
@@ -1452,6 +1592,7 @@ function maybeImportFromHash(){
 }
 async function init(){
   applyTheme();
+  applyGrade();
   initConfetti();
   maybeImportFromHash();
   try{
