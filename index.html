@@ -337,6 +337,7 @@
 <input id="fileCam" type="file" accept="image/*" capture="environment" class="hidden">
 <input id="filePick" type="file" accept="image/*" class="hidden">
 <input id="fileImport" type="file" accept=".json,application/json" class="hidden">
+<input id="filePdf" type="file" accept=".pdf,application/pdf" class="hidden">
 
 <script>
 "use strict";
@@ -579,7 +580,7 @@ function viewHome(){
   </div>`:''}
 
   <div class="rise" style="margin-top:26px;text-align:center">
-    <button class="btn ghost sm" data-action="photoBulk0">📷 写真からまとめてカードを作る</button>
+    <button class="btn ghost sm" data-action="photoBulk0">📷📄 写真・PDFからまとめてカードを作る</button>
   </div>
   `;
 }
@@ -1067,7 +1068,7 @@ async function ocrToCard(){
 function bulkModal(){
   modalState={bulkImage:null, bulkMode:'list'};
   openModal(`
-    <div class="mh"><h3>📷 写真から問題を作る</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mh"><h3>📷📄 写真・PDFから問題を作る</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
     <div class="mb">
       <div class="photobox" id="bulkPhoto">${bulkPhotoHTML()}</div>
       <div id="bulkAi" style="margin-top:10px"></div>
@@ -1107,11 +1108,12 @@ function bulkPhotoHTML(){
       ${hasKey?'':'<div class="mut" style="margin-top:8px">✨AIを使うには 右上⚙️→「AI設定」でキー登録（任意）</div>'}`;
   }
   const aiReady=!!loadApiKey();
-  return `<div style="font-size:40px">📷</div>
-    <div class="mut" style="margin:6px 0 12px">${aiReady?'✨ AIの準備OK！ 写真を撮る／選ぶと「✨ AIで問題を作る」ボタンが出ます':'写真を撮る／選ぶと ここから作れます'}</div>
+  return `<div style="font-size:40px">📷📄</div>
+    <div class="mut" style="margin:6px 0 12px">${aiReady?'✨ AIの準備OK！ 写真・PDFを選ぶと「✨ AIで問題を作る」が使えます':'写真を撮る／選ぶ・PDFを読み込むと ここから作れます'}</div>
     <div class="photo-actions">
       <button class="btn sm" data-action="bcam">カメラで撮る</button>
       <button class="btn ghost sm" data-action="bpick">画像をえらぶ</button>
+      <button class="btn ghost sm" data-action="bpdf">📄 PDFをえらぶ</button>
     </div>`;
 }
 function refreshBulkPhoto(){const pb=$('#bulkPhoto');if(pb)pb.innerHTML=bulkPhotoHTML();}
@@ -1182,6 +1184,17 @@ function parseAiCards(text){
   const arr = data && Array.isArray(data.cards) ? data.cards : (Array.isArray(data)?data:[]);
   return arr.map(c=>[String((c&&c.front)||'').trim(),String((c&&c.back)||'').trim()]).filter(p=>p[0]||p[1]);
 }
+async function aiThrowIfBad(res){
+  if(res.ok)return;
+  let detail=''; try{ const ej=await res.json(); detail=(ej&&ej.error&&ej.error.message)||''; }catch(_e){}
+  let msg='AIエラー ('+res.status+')';
+  if(res.status===401)msg='APIキーが正しくないようです（⚙️AI設定で確認）';
+  else if(res.status===403)msg='このキーでは使えません。権限や支払い設定（クレジット残高）をご確認ください';
+  else if(res.status===429)msg='回数の制限です。少し待ってからもう一度';
+  else if(res.status===400)msg='リクエストエラー';
+  else if(res.status>=500)msg='サーバー側のエラー。少し待って再度';
+  throw new Error(detail ? (msg+'：'+detail) : msg);
+}
 async function aiGenerateFromImage(dataURL){
   const key=loadApiKey(); if(!key)throw new Error('NO_KEY');
   const comma=dataURL.indexOf(',');
@@ -1197,16 +1210,21 @@ async function aiGenerateFromImage(dataURL){
       {type:'text',text:prompt}
     ]}]})
   });
-  if(!res.ok){
-    let detail=''; try{ const ej=await res.json(); detail=(ej&&ej.error&&ej.error.message)||''; }catch(_e){}
-    let msg='AIエラー ('+res.status+')';
-    if(res.status===401)msg='APIキーが正しくないようです（⚙️AI設定で確認）';
-    else if(res.status===403)msg='このキーでは使えません。権限や支払い設定（クレジット残高）をご確認ください';
-    else if(res.status===429)msg='回数の制限です。少し待ってからもう一度';
-    else if(res.status===400)msg='リクエストエラー';
-    else if(res.status>=500)msg='サーバー側のエラー。少し待って再度';
-    throw new Error(detail ? (msg+'：'+detail) : msg);
-  }
+  await aiThrowIfBad(res);
+  const data=await res.json();
+  const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+  return parseAiCards(text);
+}
+async function aiGenerateFromText(srcText){
+  const key=loadApiKey(); if(!key)throw new Error('NO_KEY');
+  const _g=gradeObj(); const _gh=_g?('対象は'+_g.ai+'。その学年に合った難しさ・言葉づかい・分量で作ってください。'):'';
+  const prompt='あなたは小中高生の学習を助ける先生です。'+_gh+'次の文章（教科書・プリント・PDF・単語リストなど）から暗記カードを作ってください。各カードは front（覚える語・問い）と back（答え・意味）のペアです。重要な学習項目を漏れなく、子どもが覚えやすい簡潔な形に。英単語なら front=英語 / back=日本語。社会や理科の用語は front=用語や問い / back=答えや説明。出力は次のJSONのみで、前後に説明やマークダウンを一切付けないこと:\n{"cards":[{"front":"...","back":"..."}]}\n\n=== 文章 ===\n'+String(srcText||'').slice(0,12000);
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:loadAiModel(),max_tokens:4000,messages:[{role:'user',content:prompt}]})
+  });
+  await aiThrowIfBad(res);
   const data=await res.json();
   const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
   return parseAiCards(text);
@@ -1228,6 +1246,92 @@ async function aigen(){
       : /failed to fetch|networkerror|load failed/i.test(m) ? '通信できませんでした。ネット接続、またはブラウザのブロック（CORS）の可能性があります。'
       : esc(m);
     box.innerHTML='<div class="panel"><div class="mut">⚠️ '+disp+'</div></div>';
+  }
+}
+
+/* ----- PDFから問題を作る（pdf.js遅延ロード・テキスト抽出＋スキャン時OCR・追加費用なし） ----- */
+let _pdfReady=null;
+function loadPdfJs(){
+  if(_pdfReady)return _pdfReady;
+  _pdfReady=loadScript('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js')
+    .then(()=>{ const L=window.pdfjsLib; if(L&&L.GlobalWorkerOptions)L.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js'; return L; })
+    .catch(e=>{_pdfReady=null;throw e;});
+  return _pdfReady;
+}
+async function pdfExtract(file,onProgress){
+  const L=await loadPdfJs();
+  const buf=await file.arrayBuffer();
+  const pdf=await L.getDocument({data:buf}).promise;
+  const maxPages=Math.min(pdf.numPages,50);
+  const pages=[];
+  for(let i=1;i<=maxPages;i++){
+    const page=await pdf.getPage(i);
+    const tc=await page.getTextContent();
+    let out='';
+    for(const it of tc.items){ out+=it.str; out+=(it.hasEOL?'\n':' '); }
+    out=out.replace(/[ \t]+/g,' ').replace(/ *\n */g,'\n').replace(/\n{2,}/g,'\n').trim();
+    pages.push(out);
+    if(onProgress)onProgress(i/maxPages);
+  }
+  return {pdf, maxPages, numPages:pdf.numPages, text:pages.join('\n'), pages};
+}
+async function pdfRenderOcr(pdf,maxPages,onProgress){
+  const texts=[];
+  for(let i=1;i<=maxPages;i++){
+    const page=await pdf.getPage(i);
+    const vp=page.getViewport({scale:2});
+    const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+    await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+    const url=cv.toDataURL('image/jpeg',0.85);
+    const t=await runOCR(url,(p)=>{ if(onProgress)onProgress((i-1+p)/maxPages); });
+    texts.push(t);
+  }
+  return texts.join('\n');
+}
+async function handleBulkPdf(file){
+  if(!file)return;
+  const setMsg=(h)=>{ const b=$('#bulkAi'); if(b)b.innerHTML=h; };
+  setMsg('<div class="panel"><div class="mut">📄 PDFを読み込み中… <span id="pdfPct">0%</span><br><span style="font-size:11px">※初回はデータ取得に少し時間（オフライン不可）</span></div></div>');
+  try{
+    const r=await pdfExtract(file,(p)=>{const e=$('#pdfPct');if(e)e.textContent=Math.round(p*100)+'%';});
+    let text=r.text;
+    if(text.replace(/\s/g,'').length<12){
+      const ocrPages=Math.min(r.numPages,8);
+      setMsg('<div class="panel"><div class="mut">🖼️ 画像（スキャン）PDFのようです。文字を読み取り中…（'+ocrPages+'ページ）<span id="pdfPct">0%</span><br><span style="font-size:11px">※ページ数が多いと時間がかかります</span></div></div>');
+      text=await pdfRenderOcr(r.pdf,ocrPages,(p)=>{const e=$('#pdfPct');if(e)e.textContent=Math.round(p*100)+'%';});
+    }
+    const cleaned=text.split('\n').map(s=>s.trim()).filter(Boolean).join('\n');
+    if(!cleaned){ setMsg('<div class="panel"><div class="mut">⚠️ 文字を取り出せませんでした。別のPDFか、写真からの取り込みをお試しください。</div></div>'); return; }
+    if($('#bulkText'))$('#bulkText').value=cleaned;
+    modalState.pdfText=cleaned;
+    const hasKey=!!loadApiKey();
+    const capNote=r.numPages>r.maxPages?'（最初の'+r.maxPages+'ページ）':'';
+    setMsg('<div class="panel"><div class="mut">✅ PDFを読み込みました'+capNote+'（'+r.numPages+'ページ）。下で確認・修正できます。</div>'
+      +(hasKey?'<div class="photo-actions" style="margin-top:8px"><button class="btn sm" data-action="aigentext">✨ AIで問題を作る</button></div>':'<div class="mut" style="margin-top:6px;font-size:12px">✨AIで作るには 右上⚙️→「AI設定」でキー登録（任意）。下の「カードを作る」で無料の自動分割もできます。</div>')
+      +'</div>');
+  }catch(e){
+    setMsg('<div class="panel"><div class="mut">⚠️ PDFを読み込めませんでした（'+esc((e&&e.message)||'')+'）。通信状況をご確認ください（この機能は初回にデータ取得が必要です）。</div></div>');
+  }
+}
+async function aigenText(){
+  const ta=$('#bulkText');
+  const src=(ta&&ta.value.trim())?ta.value:(modalState.pdfText||'');
+  if(!src||!src.trim()){toast('先にPDFか文章を読み込んでね');return;}
+  const box=$('#bulkAi');
+  if(box)box.innerHTML='<div class="panel"><div class="mut">✨ AIが問題を作っています…（数秒〜十数秒）</div></div>';
+  try{
+    const pairs=await aiGenerateFromText(src);
+    if(!pairs.length){ if(box)box.innerHTML='<div class="panel"><div class="mut">カードを作れませんでした。内容を変えてお試しを。</div></div>'; return; }
+    if($('#bulkText'))$('#bulkText').value=pairs.map(p=>p[0]+'\t'+p[1]).join('\n');
+    modalState.bulkMode='list';
+    if($('#bulkModeSeg'))$$('#bulkModeSeg .segbtn').forEach(x=>x.classList.toggle('on',x.dataset.bmode==='list'));
+    if(box)box.innerHTML='<div class="mut">✅ AIが '+pairs.length+'件 作りました。下で確認・修正して「カードを作る」を押してね。</div>';
+  }catch(e){
+    var m=(e&&e.message)||'エラー';
+    var disp = m==='NO_KEY' ? '⚙️AI設定でAPIキーを登録してください'
+      : /failed to fetch|networkerror|load failed/i.test(m) ? '通信できませんでした。ネット接続、またはブラウザのブロック（CORS）の可能性があります。'
+      : esc(m);
+    if(box)box.innerHTML='<div class="panel"><div class="mut">⚠️ '+disp+'</div></div>';
   }
 }
 
@@ -1680,7 +1784,9 @@ document.addEventListener('click',async e=>{
     case 'photoBulk1': bulkModal();break;
     case 'bcam': triggerFile('fileCam',handleBulkPhoto);break;
     case 'bpick': triggerFile('filePick',handleBulkPhoto);break;
+    case 'bpdf': triggerFile('filePdf',handleBulkPdf);break;
     case 'bocr': bocr();break;
+    case 'aigentext': aigenText();break;
     case 'brm': modalState.bulkImage=null;refreshBulkPhoto();break;
     case 'aigen': aigen();break;
     case 'bulkmake': bulkmake();break;
@@ -1696,7 +1802,7 @@ document.addEventListener('click',async e=>{
 
 let _fileCb=null;
 function triggerFile(inputId,cb){const inp=$('#'+inputId);_fileCb=cb;inp.value='';inp.click();}
-['fileCam','filePick','fileImport'].forEach(idn=>{
+['fileCam','filePick','fileImport','filePdf'].forEach(idn=>{
   $('#'+idn).addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f&&_fileCb)_fileCb(f);});
 });
 
