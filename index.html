@@ -916,7 +916,9 @@ function bulkPhotoHTML(){
       </div>
       ${hasKey?'':'<div class="mut" style="margin-top:8px">✨AIを使うには 右上⚙️→「AI設定」でキー登録（任意）</div>'}`;
   }
-  return `<div style="font-size:40px">📷</div><div class="mut" style="margin:6px 0 12px">写真を撮る／選ぶと ここから作れます</div>
+  const aiReady=!!loadApiKey();
+  return `<div style="font-size:40px">📷</div>
+    <div class="mut" style="margin:6px 0 12px">${aiReady?'✨ AIの準備OK！ 写真を撮る／選ぶと「✨ AIで問題を作る」ボタンが出ます':'写真を撮る／選ぶと ここから作れます'}</div>
     <div class="photo-actions">
       <button class="btn sm" data-action="bcam">カメラで撮る</button>
       <button class="btn ghost sm" data-action="bpick">画像をえらぶ</button>
