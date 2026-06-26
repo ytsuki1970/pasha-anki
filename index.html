@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#FBF4E6" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="すごい暗記帳" />
-<title>すごい暗記帳</title>
+<meta name="apple-mobile-web-app-title" content="パシャ暗記" />
+<title>パシャ暗記</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -288,7 +288,7 @@
   <div class="topbar-in">
     <div class="logo" data-action="home" role="button">
       <span class="badge">📚</span>
-      <div>すごい暗記帳<small>とって・つくって・おぼえる</small></div>
+      <div>パシャ暗記<small>とって・つくって・おぼえる</small></div>
     </div>
     <span class="spacer"></span>
     <button class="iconbtn" data-action="menu" title="メニュー">⚙️</button>
@@ -309,7 +309,7 @@
 "use strict";
 
 /* =========================================================
-   すごい暗記帳  —  単一ファイル・外部APIなし・ローカル保存
+   パシャ暗記  —  単一ファイル・外部APIなし・ローカル保存
    ========================================================= */
 
 const DECK_COLORS = [
@@ -924,14 +924,14 @@ function menuModal(){
       <button class="btn block ghost" data-action="import" style="margin-bottom:10px">📥 読み込む（ファイルから）</button>
       <hr class="dash">
       <button class="btn block ghost" data-action="addsample" style="margin-bottom:10px">🎁 サンプル暗記帳を入れる</button>
-      <div class="mut center" style="margin-top:16px">すごい暗記帳 v1 ・ 写真でおぼえる暗記アプリ</div>
+      <div class="mut center" style="margin-top:16px">パシャ暗記 v1 ・ 写真でおぼえる暗記アプリ</div>
     </div>`);
 }
 function exportData(){
   const data={app:'sugoi-anki',version:1,exportedAt:new Date().toISOString(),decks:DECKS};
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='sugoi-anki-backup.json';a.click();
+  a.download='pasha-anki-backup.json';a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   toast('書き出しました 📤');
 }

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# すごい暗記帳 アプリアイコン生成（PNG）。フォント非依存（図形のみ）。
+# パシャ暗記 アプリアイコン生成（PNG）。フォント非依存（図形のみ）。
 import os, math
 from PIL import Image, ImageDraw
 

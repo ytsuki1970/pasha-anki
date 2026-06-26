@@ -1,7 +1,7 @@
 {
-  "name": "すごい暗記帳",
-  "short_name": "暗記帳",
-  "description": "写真でおぼえる、自分だけの暗記帳アプリ",
+  "name": "パシャ暗記",
+  "short_name": "パシャ暗記",
+  "description": "写真でおぼえる、自分だけの暗記アプリ",
   "lang": "ja",
   "start_url": ".",
   "scope": ".",

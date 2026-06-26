@@ -1,8 +1,8 @@
-# すごい暗記帳
+# パシャ暗記
 
 写真でおぼえる、自分だけの暗記帳アプリ。スマホ・PC のブラウザだけで動きます（インストール不要・外部サーバー不要・無料）。
 
-公開URL（GitHub Pages）: https://ytsuki1970.github.io/sugoi-ankicho/
+公開URL（GitHub Pages）: https://ytsuki1970.github.io/pasha-anki/
 
 ## 特長
 - 複数の暗記帳（デッキ）を作成・色分け
