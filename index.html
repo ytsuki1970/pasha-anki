@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#FBF4E6" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="すごい暗記帳" />
+<title>すごい暗記帳</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Zen+Maru+Gothic:wght@400;500;700;900&family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<style>
+  :root{
+    --paper:#FBF4E6;
+    --paper-2:#FFFDF8;
+    --dot:#ECE0C6;
+    --ink:#3B362E;
+    --ink-soft:#8a8174;
+    --line:#ECE3D2;
+
+    --pink:#FF6F8F;     --pink-d:#E04A6E;
+    --teal:#1FC3B0;     --teal-d:#119687;
+    --yellow:#FFC23C;   --yellow-d:#E89C00;
+    --sky:#54C4F2;      --sky-d:#2E9FD1;
+    --grape:#A98BF0;    --grape-d:#8463D4;
+    --leaf:#8BC53F;     --leaf-d:#69A323;
+    --orange:#FF9A4D;   --orange-d:#E8761F;
+
+    --primary:var(--pink);
+    --primary-d:var(--pink-d);
+
+    --shadow:0 10px 24px rgba(80,60,30,.10), 0 2px 6px rgba(80,60,30,.06);
+    --shadow-lg:0 22px 50px rgba(80,60,30,.16);
+    --radius:22px;
+
+    --font-display:'Mochiy Pop One','Zen Maru Gothic','Hiragino Maru Gothic ProN','BIZ UDPGothic',sans-serif;
+    --font-body:'Zen Maru Gothic','Hiragino Maru Gothic ProN','BIZ UDPGothic','Yu Gothic UI','Yu Gothic',system-ui,sans-serif;
+    --font-num:'Baloo 2','Mochiy Pop One',sans-serif;
+  }
+
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--font-body);
+    color:var(--ink);
+    background-color:var(--paper);
+    background-image:
+      radial-gradient(circle at center, rgba(255,177,153,.16), rgba(255,177,153,0) 60%),
+      radial-gradient(var(--dot) 1.6px, transparent 1.7px);
+    background-size:auto, 26px 26px;
+    background-position:center -120px, -8px -8px;
+    background-repeat:no-repeat, repeat;
+    min-height:100vh;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,textarea,select{font-family:inherit}
+  img{max-width:100%;display:block}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px 120px;}
+  .topbar{
+    position:sticky;top:0;z-index:30;
+    backdrop-filter:saturate(1.2) blur(6px);
+    background:linear-gradient(var(--paper), rgba(251,244,230,.86));
+    border-bottom:2px dashed var(--line);
+  }
+  .topbar-in{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 16px;}
+  .logo{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:20px;color:var(--ink);}
+  .logo .badge{
+    width:38px;height:38px;border-radius:13px;display:grid;place-items:center;font-size:20px;
+    background:linear-gradient(135deg,#FFE08A,#FF9FB3);box-shadow:var(--shadow);transform:rotate(-6deg);
+  }
+  .logo small{display:block;font-family:var(--font-body);font-weight:700;font-size:11px;color:var(--ink-soft);letter-spacing:.06em}
+  .spacer{flex:1}
+
+  .iconbtn{
+    width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:18px;
+    background:var(--paper-2);box-shadow:var(--shadow);transition:transform .12s, box-shadow .12s;
+  }
+  .iconbtn:active{transform:translateY(2px) scale(.97)}
+
+  /* ---------- buttons ---------- */
+  .btn{
+    --c:var(--primary); --cd:var(--primary-d);
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--c);color:#fff;font-weight:800;font-size:16px;
+    padding:14px 20px;border-radius:16px;box-shadow:0 5px 0 var(--cd), var(--shadow);
+    transition:transform .08s, box-shadow .08s;line-height:1;text-align:center;
+  }
+  .btn:active{transform:translateY(5px);box-shadow:0 0 0 var(--cd), var(--shadow)}
+  .btn.lg{font-size:18px;padding:17px 24px}
+  .btn.block{display:flex;width:100%}
+  .btn.ghost{background:var(--paper-2);color:var(--ink);box-shadow:0 5px 0 var(--line), var(--shadow)}
+  .btn.ghost:active{box-shadow:0 0 0 var(--line), var(--shadow)}
+  .btn.teal{--c:var(--teal);--cd:var(--teal-d)}
+  .btn.yellow{--c:var(--yellow);--cd:var(--yellow-d);color:#5a3d00}
+  .btn.sky{--c:var(--sky);--cd:var(--sky-d)}
+  .btn.grape{--c:var(--grape);--cd:var(--grape-d)}
+  .btn.sm{font-size:14px;padding:10px 14px;border-radius:13px;box-shadow:0 4px 0 var(--cd), var(--shadow)}
+  .btn[disabled]{opacity:.5;pointer-events:none}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--paper-2);color:var(--ink-soft);
+    font-weight:700;font-size:12px;padding:6px 11px;border-radius:999px;box-shadow:var(--shadow)}
+
+  /* ---------- cards / panels ---------- */
+  .panel{background:var(--paper-2);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+  .hello{
+    margin:18px 0 6px;display:flex;align-items:center;gap:16px;
+  }
+  .hello h1{font-family:var(--font-display);font-size:23px;margin:0;line-height:1.35}
+  .hello p{margin:2px 0 0;color:var(--ink-soft);font-weight:700;font-size:13px}
+  .mascot{flex:none;width:64px;height:64px;filter:drop-shadow(0 6px 10px rgba(80,60,30,.16))}
+
+  .stats{display:flex;gap:12px;margin:14px 0 22px}
+  .stat{flex:1;background:var(--paper-2);border-radius:18px;box-shadow:var(--shadow);padding:14px;text-align:center;position:relative;overflow:hidden}
+  .stat .n{font-family:var(--font-num);font-weight:800;font-size:30px;line-height:1;color:var(--ink)}
+  .stat .l{font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-top:5px}
+  .stat .ic{position:absolute;right:-6px;top:-8px;font-size:42px;opacity:.14;transform:rotate(-10deg)}
+
+  .sectionhead{display:flex;align-items:center;gap:10px;margin:8px 2px 12px}
+  .sectionhead h2{font-family:var(--font-display);font-size:16px;margin:0}
+  .sectionhead .line{flex:1;height:0;border-top:2px dashed var(--line)}
+
+  /* deck grid */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+  .deck{
+    position:relative;border-radius:20px;padding:16px 16px 14px;color:#fff;overflow:hidden;
+    box-shadow:0 8px 0 rgba(0,0,0,.10), var(--shadow);transition:transform .12s, box-shadow .12s;cursor:pointer;
+    min-height:128px;display:flex;flex-direction:column;
+  }
+  .deck:active{transform:translateY(4px);box-shadow:0 4px 0 rgba(0,0,0,.10), var(--shadow)}
+  .deck .emoji{font-size:34px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.2))}
+  .deck h3{font-family:var(--font-display);font-size:18px;margin:8px 0 2px;font-weight:400;text-shadow:0 1px 2px rgba(0,0,0,.18)}
+  .deck .meta{font-size:12px;font-weight:700;opacity:.95}
+  .deck .ring{position:absolute;right:12px;top:12px}
+  .deck .deco{position:absolute;right:-18px;bottom:-22px;font-size:96px;opacity:.16;transform:rotate(-12deg);pointer-events:none}
+  .deck .bar{height:8px;border-radius:999px;background:rgba(255,255,255,.35);margin-top:auto;overflow:hidden}
+  .deck .bar i{display:block;height:100%;background:#fff;border-radius:999px;box-shadow:0 0 8px rgba(255,255,255,.6)}
+
+  .addtile{
+    border:3px dashed #E7C9A6;background:rgba(255,253,248,.7);color:var(--ink-soft);
+    border-radius:20px;min-height:128px;display:grid;place-items:center;font-weight:800;cursor:pointer;
+    transition:transform .12s,border-color .12s,color .12s;text-align:center;
+  }
+  .addtile:hover{border-color:var(--pink);color:var(--pink)}
+  .addtile:active{transform:scale(.98)}
+  .addtile .big{font-size:34px;display:block;margin-bottom:4px}
+
+  /* ---------- deck detail ---------- */
+  .backbtn{display:inline-flex;align-items:center;gap:7px;background:none;color:var(--ink-soft);font-weight:800;font-size:14px;padding:6px 0;margin:10px 0}
+  .deckhero{border-radius:24px;padding:20px;color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow-lg);margin-bottom:6px}
+  .deckhero .emoji{font-size:46px}
+  .deckhero h1{font-family:var(--font-display);font-weight:400;font-size:24px;margin:6px 0 2px;text-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .deckhero .sub{font-weight:700;font-size:13px;opacity:.95}
+  .deckhero .deco{position:absolute;right:-14px;bottom:-30px;font-size:130px;opacity:.18;transform:rotate(-10deg)}
+  .deckhero .tools{position:absolute;top:14px;right:14px;display:flex;gap:8px}
+  .deckhero .tools .iconbtn{background:rgba(255,255,255,.25);color:#fff;backdrop-filter:blur(4px);box-shadow:none}
+
+  .moderow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+  .modebtn{
+    background:var(--paper-2);border-radius:18px;padding:14px 8px;text-align:center;box-shadow:0 5px 0 var(--line),var(--shadow);
+    transition:transform .1s,box-shadow .1s;font-weight:800;font-size:13px;
+  }
+  .modebtn .e{font-size:26px;display:block;margin-bottom:4px}
+  .modebtn:active{transform:translateY(5px);box-shadow:0 0 0 var(--line),var(--shadow)}
+  .modebtn.p{color:var(--pink)} .modebtn.t{color:var(--teal-d)} .modebtn.s{color:var(--sky-d)}
+
+  .cardrow{display:flex;align-items:center;gap:12px;background:var(--paper-2);border-radius:16px;padding:11px 12px;box-shadow:var(--shadow);margin-bottom:10px}
+  .cardrow .thumb{width:46px;height:46px;border-radius:11px;object-fit:cover;background:#f0e8d8;flex:none}
+  .cardrow .thumb.ph{display:grid;place-items:center;font-size:20px;color:#c9bda6}
+  .cardrow .ft{flex:1;min-width:0}
+  .cardrow .q{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cardrow .a{font-size:13px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cardrow .box{flex:none;font-size:11px;font-weight:800;color:#fff;background:var(--leaf);padding:3px 8px;border-radius:999px}
+  .cardrow .box.no{background:#d9cdb8;color:#7a6f5c}
+  .cardrow .edit{flex:none;color:var(--ink-soft);font-size:18px;padding:6px}
+
+  /* ---------- modal ---------- */
+  .modal-bg{position:fixed;inset:0;background:rgba(59,54,46,.45);backdrop-filter:blur(3px);z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fade .2s}
+  @media(min-width:560px){.modal-bg{align-items:center;padding:20px}}
+  .modal{background:var(--paper-2);width:100%;max-width:520px;border-radius:24px 24px 0 0;box-shadow:var(--shadow-lg);max-height:92vh;overflow:auto;animation:slideup .26s cubic-bezier(.2,.9,.3,1.2)}
+  @media(min-width:560px){.modal{border-radius:24px}}
+  .modal .mh{position:sticky;top:0;background:var(--paper-2);display:flex;align-items:center;gap:10px;padding:18px 18px 10px;z-index:2}
+  .modal .mh h3{font-family:var(--font-display);font-size:18px;margin:0;flex:1}
+  .modal .mb{padding:4px 18px 20px}
+  @keyframes slideup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  label.fld{display:block;margin:14px 0 0}
+  label.fld .lab{font-weight:800;font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .input,.ta{width:100%;background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 14px;font-size:16px;color:var(--ink);transition:border-color .15s,box-shadow .15s}
+  .ta{resize:vertical;min-height:74px;line-height:1.5}
+  .input:focus,.ta:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 4px rgba(255,111,143,.16)}
+
+  .photobox{margin-top:8px;border:2px dashed var(--line);border-radius:16px;padding:14px;text-align:center;background:#fff}
+  .photobox img{margin:0 auto 10px;border-radius:12px;max-height:200px;width:auto;box-shadow:var(--shadow)}
+  .photo-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+
+  .palette{display:flex;gap:9px;flex-wrap:wrap;margin-top:6px}
+  .sw{width:34px;height:34px;border-radius:11px;box-shadow:var(--shadow);cursor:pointer;transition:transform .1s;border:3px solid transparent}
+  .sw:active{transform:scale(.9)}
+  .sw.on{border-color:var(--ink);transform:scale(1.06)}
+  .emojipick{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .ep{width:42px;height:42px;border-radius:12px;background:#fff;box-shadow:var(--shadow);font-size:22px;display:grid;place-items:center;cursor:pointer;border:3px solid transparent}
+  .ep.on{border-color:var(--pink)}
+
+  /* ---------- study ---------- */
+  .study{max-width:560px;margin:0 auto;padding:10px 16px 60px}
+  .study-top{display:flex;align-items:center;gap:12px;margin:6px 0 14px}
+  .progress{flex:1;height:14px;background:var(--paper-2);border-radius:999px;box-shadow:inset 0 2px 4px rgba(80,60,30,.12);overflow:hidden}
+  .progress i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),#7fe3d6);border-radius:999px;transition:width .35s cubic-bezier(.2,.9,.3,1)}
+  .study-count{font-family:var(--font-num);font-weight:800;color:var(--ink-soft);font-size:15px}
+
+  .flip{perspective:1400px;}
+  .flip-inner{position:relative;width:100%;min-height:340px;transition:transform .55s cubic-bezier(.3,.9,.3,1.1);transform-style:preserve-3d;cursor:pointer}
+  .flip.on .flip-inner{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;backface-visibility:hidden;background:var(--paper-2);border-radius:26px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px;text-align:center}
+  .face .tag{position:absolute;top:16px;left:16px;font-weight:800;font-size:12px;color:#fff;background:var(--pink);padding:4px 12px;border-radius:999px}
+  .face.back{transform:rotateY(180deg);background:#FFFBEF}
+  .face.back .tag{background:var(--teal)}
+  .face img{max-height:170px;border-radius:14px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .face .big{font-family:var(--font-display);font-size:30px;line-height:1.35;font-weight:400;word-break:break-word}
+  .face .hint{margin-top:12px;color:var(--ink-soft);font-size:14px;font-weight:700}
+  .tapnote{position:absolute;bottom:16px;left:0;right:0;color:var(--ink-soft);font-size:12px;font-weight:700;opacity:.8}
+
+  .judge{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+
+  .opt{display:flex;align-items:center;gap:12px;width:100%;background:var(--paper-2);border-radius:16px;padding:15px 16px;box-shadow:0 5px 0 var(--line),var(--shadow);font-weight:800;font-size:16px;text-align:left;margin-bottom:11px;transition:transform .08s,box-shadow .08s;border:2px solid transparent}
+  .opt:active{transform:translateY(5px);box-shadow:0 0 0 var(--line),var(--shadow)}
+  .opt .k{width:30px;height:30px;border-radius:9px;background:var(--paper);display:grid;place-items:center;font-family:var(--font-num);flex:none;color:var(--ink-soft)}
+  .opt.correct{border-color:var(--teal);background:#E9FBF7}
+  .opt.correct .k{background:var(--teal);color:#fff}
+  .opt.wrong{border-color:var(--pink);background:#FFEEF1}
+  .opt.wrong .k{background:var(--pink);color:#fff}
+  .opt.dim{opacity:.5}
+
+  .qbig{background:var(--paper-2);border-radius:22px;box-shadow:var(--shadow);padding:26px 20px;text-align:center;margin-bottom:16px}
+  .qbig img{max-height:150px;margin:0 auto 12px;border-radius:12px}
+  .qbig .q{font-family:var(--font-display);font-size:26px;font-weight:400;word-break:break-word}
+  .qbig .ask{color:var(--ink-soft);font-weight:700;font-size:13px;margin-bottom:8px}
+
+  .typefb{border-radius:16px;padding:14px 16px;margin-top:14px;font-weight:800;display:none}
+  .typefb.ok{display:block;background:#E9FBF7;color:var(--teal-d)}
+  .typefb.ng{display:block;background:#FFEEF1;color:var(--pink-d)}
+  .typefb .ans{display:block;font-size:14px;color:var(--ink);margin-top:4px}
+
+  /* result */
+  .result{text-align:center;padding:30px 16px;max-width:480px;margin:0 auto}
+  .result .score{font-family:var(--font-num);font-size:70px;font-weight:800;line-height:1;color:var(--teal-d)}
+  .result h2{font-family:var(--font-display);font-size:24px;margin:6px 0 2px}
+  .result p{color:var(--ink-soft);font-weight:700}
+  .result .mascot{width:120px;margin:6px auto 4px}
+  .resbtns{display:flex;flex-direction:column;gap:12px;margin-top:24px}
+
+  .empty{text-align:center;color:var(--ink-soft);padding:34px 16px}
+  .empty .mascot{width:110px;margin:0 auto 10px}
+  .empty p{font-weight:700}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-weight:800;font-size:14px;padding:12px 20px;border-radius:14px;box-shadow:var(--shadow-lg);opacity:0;transition:.25s;z-index:80;pointer-events:none}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:90}
+  .pop{animation:pop .3s}
+  @keyframes pop{0%{transform:scale(.8)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
+  .rise{animation:rise .5s both}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  .hidden{display:none!important}
+  .center{text-align:center}
+  .mut{color:var(--ink-soft);font-weight:700;font-size:13px}
+  hr.dash{border:none;border-top:2px dashed var(--line);margin:18px 0}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="logo" data-action="home" role="button">
+      <span class="badge">📚</span>
+      <div>すごい暗記帳<small>とって・つくって・おぼえる</small></div>
+    </div>
+    <span class="spacer"></span>
+    <button class="iconbtn" data-action="menu" title="メニュー">⚙️</button>
+  </div>
+</div>
+
+<div id="app" class="wrap"></div>
+
+<canvas id="confetti"></canvas>
+<div class="toast" id="toast"></div>
+
+<!-- hidden file inputs -->
+<input id="fileCam" type="file" accept="image/*" capture="environment" class="hidden">
+<input id="filePick" type="file" accept="image/*" class="hidden">
+<input id="fileImport" type="file" accept=".json,application/json" class="hidden">
+
+<script>
+"use strict";
+
+/* =========================================================
+   すごい暗記帳  —  単一ファイル・外部APIなし・ローカル保存
+   ========================================================= */
+
+const DECK_COLORS = [
+  ['pink','var(--pink)','var(--pink-d)'],
+  ['teal','var(--teal)','var(--teal-d)'],
+  ['sky','var(--sky)','var(--sky-d)'],
+  ['yellow','var(--yellow)','var(--yellow-d)'],
+  ['grape','var(--grape)','var(--grape-d)'],
+  ['leaf','var(--leaf)','var(--leaf-d)'],
+  ['orange','var(--orange)','var(--orange-d)'],
+];
+const DECK_EMOJI = ['📘','✏️','🌸','⭐','🔤','🌏','🧪','🔢','🎨','🎵','🐧','🍀','🏯','💡','📝','🦊'];
+const MASTER_BOX = 4; // box>=4 を「おぼえた」とする（最大5）
+
+/* ---------- tiny IndexedDB wrapper ---------- */
+const DB_NAME='sugoi-anki', STORE='decks';
+let _db=null;
+function openDB(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(DB_NAME,1);
+    r.onupgradeneeded=()=>{const db=r.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id'});};
+    r.onsuccess=()=>{_db=r.result;res(_db);};
+    r.onerror=()=>rej(r.error);
+  });
+}
+function tx(mode){return _db.transaction(STORE,mode).objectStore(STORE);}
+function idbAll(){return new Promise((res,rej)=>{const r=tx('readonly').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});}
+function idbPut(v){return new Promise((res,rej)=>{const r=tx('readwrite').put(v);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
+function idbDel(id){return new Promise((res,rej)=>{const r=tx('readwrite').delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
+
+/* ---------- state ---------- */
+let DECKS=[];               // [{id,name,emoji,color,createdAt,cards:[...]}]
+let state={view:'home', deckId:null, session:null};
+let META=loadMeta();        // {streak, lastDay, totalReviews}
+
+function loadMeta(){
+  try{return JSON.parse(localStorage.getItem('sugoi-meta'))||{}}catch(e){return {}}
+}
+function saveMeta(){try{localStorage.setItem('sugoi-meta',JSON.stringify(META))}catch(e){}}
+
+function uid(){return 'id'+Math.random().toString(36).slice(2,10)+(performance.now()|0).toString(36);}
+function deckById(id){return DECKS.find(d=>d.id===id);}
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
+
+function bumpStreak(){
+  const t=todayStr();
+  if(META.lastDay===t) return;
+  const y=new Date(); y.setDate(y.getDate()-1);
+  const ystr=y.getFullYear()+'-'+(y.getMonth()+1)+'-'+y.getDate();
+  META.streak = (META.lastDay===ystr)? (META.streak||0)+1 : 1;
+  META.lastDay=t; saveMeta();
+}
+
+/* ---------- helpers ---------- */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+function esc(s){return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function colorVars(name){const c=DECK_COLORS.find(x=>x[0]===name)||DECK_COLORS[0];return {c:c[1],d:c[2]};}
+function masteredCount(deck){return deck.cards.filter(c=>(c.box||0)>=MASTER_BOX).length;}
+function deckPct(deck){return deck.cards.length? Math.round(masteredCount(deck)/deck.cards.length*100):0;}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+let toastTimer=null;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('on'),1900);}
+
+/* ---------- image resize ---------- */
+async function fileToDataURL(file,max=1200,q=0.72){
+  let bmp;
+  try{ bmp = await createImageBitmap(file,{imageOrientation:'from-image'}); }
+  catch(e){ bmp = await loadImg(file); }
+  let {width:w,height:h}= bmp;
+  const scale=Math.min(1,max/Math.max(w,h));
+  w=Math.round(w*scale); h=Math.round(h*scale);
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+  cv.getContext('2d').drawImage(bmp,0,0,w,h);
+  return cv.toDataURL('image/jpeg',q);
+}
+function loadImg(file){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>res(img);img.onerror=rej;img.src=URL.createObjectURL(file);});}
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+function render(){
+  const app=$('#app');
+  if(state.view==='home') app.innerHTML=viewHome();
+  else if(state.view==='deck') app.innerHTML=viewDeck();
+  else if(state.view==='flash') app.innerHTML=viewFlash();
+  else if(state.view==='quiz') app.innerHTML=viewQuiz();
+  else if(state.view==='type') app.innerHTML=viewType();
+  else if(state.view==='result') app.innerHTML=viewResult();
+  window.scrollTo(0,0);
+  // entrance animation
+  $$('.rise',app).forEach((el,i)=>{el.style.animationDelay=(i*55)+'ms';});
+  if(state.view==='flash') wireFlash();
+  if(state.view==='quiz') wireQuiz();
+  if(state.view==='type') wireType();
+}
+
+function go(view,opts={}){state.view=view;if(view==='home')state.deckId=null;Object.assign(state,opts);render();}
+
+/* ---------- HOME ---------- */
+function viewHome(){
+  const totalCards=DECKS.reduce((s,d)=>s+d.cards.length,0);
+  const totalMastered=DECKS.reduce((s,d)=>s+masteredCount(d),0);
+  const streak=META.streak||0;
+
+  let decks=DECKS.map((d,i)=>{
+    const {c,d:dd}=colorVars(d.color);const pct=deckPct(d);
+    return `<div class="deck rise" style="background:linear-gradient(140deg,${c},${dd})" data-action="open" data-id="${d.id}">
+      <div class="ring">${pct>0?`<span class="chip" style="background:rgba(255,255,255,.25);color:#fff;box-shadow:none">${pct}%</span>`:''}</div>
+      <span class="emoji">${esc(d.emoji||'📘')}</span>
+      <h3>${esc(d.name)}</h3>
+      <div class="meta">カード ${d.cards.length}まい ・ おぼえた ${masteredCount(d)}</div>
+      <span class="deco">${esc(d.emoji||'📘')}</span>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="hello rise">
+    ${mascotSVG(64)}
+    <div>
+      <h1>こんにちは！<br>きょうも すこしずつ おぼえよう</h1>
+      <p>${DECKS.length? '暗記帳をえらんでスタート 🚀':'まずは暗記帳をつくってみよう'}</p>
+    </div>
+  </div>
+
+  <div class="stats rise">
+    <div class="stat"><div class="n">${streak}</div><div class="l">れんぞく日数 🔥</div><span class="ic">🔥</span></div>
+    <div class="stat"><div class="n">${totalCards}</div><div class="l">カードの数 🃏</div><span class="ic">🃏</span></div>
+    <div class="stat"><div class="n">${totalMastered}</div><div class="l">おぼえた ⭐</div><span class="ic">⭐</span></div>
+  </div>
+
+  <div class="sectionhead rise"><h2>わたしの暗記帳</h2><span class="line"></span></div>
+  <div class="grid">
+    ${decks}
+    <div class="addtile rise" data-action="newdeck"><span><span class="big">＋</span>新しい暗記帳をつくる</span></div>
+  </div>
+
+  <div class="rise" style="margin-top:26px;text-align:center">
+    <button class="btn ghost sm" data-action="photoBulk0">📷 写真からまとめてカードを作る</button>
+  </div>
+  `;
+}
+
+/* ---------- DECK DETAIL ---------- */
+function viewDeck(){
+  const d=deckById(state.deckId); if(!d) {go('home');return '';}
+  const {c,dd}=colorVars(d.color);const col=colorVars(d.color);
+  const pct=deckPct(d);
+  const cards=d.cards.map(card=>{
+    const box=card.box||0;const ok=box>=MASTER_BOX;
+    return `<div class="cardrow rise" data-action="editcard" data-id="${card.id}">
+      ${card.image?`<img class="thumb" src="${card.image}">`:`<div class="thumb ph">📝</div>`}
+      <div class="ft">
+        <div class="q">${esc(card.front)||'(もんだい なし)'}</div>
+        <div class="a">${esc(card.back)||'(こたえ なし)'}</div>
+      </div>
+      <span class="box ${ok?'':'no'}">${ok?'おぼえた':'box '+(box+0)}</span>
+      <span class="edit">✏️</span>
+    </div>`;
+  }).join('');
+
+  return `
+  <button class="backbtn" data-action="home">‹ もどる</button>
+  <div class="deckhero rise" style="background:linear-gradient(140deg,${col.c},${col.d})">
+    <div class="tools">
+      <button class="iconbtn" data-action="editdeck" title="暗記帳を編集">✏️</button>
+    </div>
+    <span class="emoji">${esc(d.emoji||'📘')}</span>
+    <h1>${esc(d.name)}</h1>
+    <div class="sub">カード ${d.cards.length}まい ・ おぼえた ${masteredCount(d)} ・ ${pct}%</div>
+    <span class="deco">${esc(d.emoji||'📘')}</span>
+  </div>
+
+  <div class="moderow rise">
+    <button class="modebtn p" data-action="start" data-mode="flash" ${d.cards.length?'':'disabled'}><span class="e">🔄</span>フラッシュ<br>カード</button>
+    <button class="modebtn t" data-action="start" data-mode="quiz" ${d.cards.length>=2?'':'disabled'}><span class="e">✅</span>4たく<br>クイズ</button>
+    <button class="modebtn s" data-action="start" data-mode="type" ${d.cards.length?'':'disabled'}><span class="e">⌨️</span>タイピング</button>
+  </div>
+
+  <div style="display:flex;gap:10px;margin:14px 0">
+    <button class="btn block" data-action="newcard">＋ カードを追加</button>
+    <button class="btn ghost sm" data-action="photoBulk1" title="写真からまとめて作る">📷</button>
+  </div>
+
+  <div class="sectionhead rise"><h2>カード一覧</h2><span class="line"></span></div>
+  ${d.cards.length? cards : emptyCards()}
+  `;
+}
+function emptyCards(){
+  return `<div class="empty">${mascotSVG(110)}<p>まだカードがないよ。<br>「＋カードを追加」か「📷写真から」で作ってみよう！</p></div>`;
+}
+
+/* =========================================================
+   STUDY: FLASHCARD
+   ========================================================= */
+function startSession(mode){
+  const d=deckById(state.deckId);
+  let cards=d.cards.slice();
+  // 未習得を優先しつつシャッフル
+  cards.sort((a,b)=>(a.box||0)-(b.box||0));
+  const groups={};cards.forEach(c=>{(groups[c.box||0]=groups[c.box||0]||[]).push(c);});
+  cards=Object.keys(groups).sort((a,b)=>a-b).flatMap(k=>shuffle(groups[k]));
+  state.session={mode,cards,idx:0,correct:0,wrong:0,results:[]};
+  go(mode);
+}
+
+function viewFlash(){
+  const s=state.session;const card=s.cards[s.idx];
+  return `
+  <div class="study">
+    <div class="study-top">
+      <button class="iconbtn" data-action="open" data-id="${state.deckId}">✕</button>
+      <div class="progress"><i style="width:${s.idx/s.cards.length*100}%"></i></div>
+      <span class="study-count">${s.idx+1}/${s.cards.length}</span>
+    </div>
+    <div class="flip" id="flip">
+      <div class="flip-inner" id="flipInner">
+        <div class="face front">
+          <span class="tag">もんだい</span>
+          ${card.image?`<img src="${card.image}">`:''}
+          <div class="big">${esc(card.front)}</div>
+          ${card.hint?`<div class="hint">💡 ${esc(card.hint)}</div>`:''}
+          <div class="tapnote">タップで こたえを見る 👆</div>
+        </div>
+        <div class="face back">
+          <span class="tag">こたえ</span>
+          <div class="big">${esc(card.back)}</div>
+          ${card.front?`<div class="hint">${esc(card.front)}</div>`:''}
+        </div>
+      </div>
+    </div>
+    <div class="judge" id="judge" style="visibility:hidden">
+      <button class="btn ghost" data-judge="again">🔁 もういちど</button>
+      <button class="btn teal" data-judge="ok">⭕ できた！</button>
+    </div>
+  </div>`;
+}
+function wireFlash(){
+  const flip=$('#flip'),judge=$('#judge');
+  flip.addEventListener('click',()=>{
+    flip.classList.toggle('on');
+    if(flip.classList.contains('on')) judge.style.visibility='visible';
+  });
+  $$('[data-judge]').forEach(b=>b.addEventListener('click',()=>{
+    const s=state.session,card=s.cards[s.idx];
+    if(b.dataset.judge==='ok'){card.box=Math.min(5,(card.box||0)+1);s.correct++;}
+    else{card.box=Math.max(1,Math.min((card.box||0),1));s.wrong++;}
+    card.last=Date.now();
+    s.idx++;
+    if(s.idx>=s.cards.length){finishSession();}
+    else render();
+  }));
+}
+
+/* =========================================================
+   STUDY: QUIZ (4択)
+   ========================================================= */
+function buildOptions(card,deck){
+  const others=shuffle(deck.cards.filter(c=>c.id!==card.id && c.back && c.back!==card.back));
+  const opts=[card.back];
+  for(const o of others){if(opts.length>=4)break;if(!opts.includes(o.back))opts.push(o.back);}
+  return shuffle(opts);
+}
+function viewQuiz(){
+  const s=state.session;const d=deckById(state.deckId);const card=s.cards[s.idx];
+  if(!s.opts) s.opts=buildOptions(card,d);
+  const letters=['A','B','C','D'];
+  const opts=s.opts.map((o,i)=>`<button class="opt" data-opt="${esc(o)}"><span class="k">${letters[i]}</span><span>${esc(o)}</span></button>`).join('');
+  return `
+  <div class="study">
+    <div class="study-top">
+      <button class="iconbtn" data-action="open" data-id="${state.deckId}">✕</button>
+      <div class="progress"><i style="width:${s.idx/s.cards.length*100}%"></i></div>
+      <span class="study-count">${s.idx+1}/${s.cards.length}</span>
+    </div>
+    <div class="qbig">
+      <div class="ask">この いみは？</div>
+      ${card.image?`<img src="${card.image}">`:''}
+      <div class="q">${esc(card.front)}</div>
+    </div>
+    <div id="opts">${opts}</div>
+    <div class="center" id="next" style="display:none;margin-top:6px">
+      <button class="btn block" data-action="qnext">つぎへ ›</button>
+    </div>
+  </div>`;
+}
+function wireQuiz(){
+  const s=state.session;const card=s.cards[s.idx];
+  $$('#opts .opt').forEach(b=>b.addEventListener('click',()=>{
+    if(s.answered)return; s.answered=true;
+    const chosen=b.dataset.opt;const correct=chosen===card.back;
+    $$('#opts .opt').forEach(x=>{
+      if(x.dataset.opt===card.back)x.classList.add('correct');
+      else if(x===b)x.classList.add('wrong');
+      else x.classList.add('dim');
+      x.style.pointerEvents='none';
+    });
+    if(correct){card.box=Math.min(5,(card.box||0)+1);s.correct++;burst(0.5,0.4);}
+    else{card.box=1;s.wrong++;}
+    card.last=Date.now();
+    $('#next').style.display='block';
+  }));
+}
+function qnext(){
+  const s=state.session;s.answered=false;s.opts=null;s.idx++;
+  if(s.idx>=s.cards.length)finishSession();else render();
+}
+
+/* =========================================================
+   STUDY: TYPING
+   ========================================================= */
+function normalize(str){
+  return (str||'').trim().toLowerCase().replace(/\s+/g,'')
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0))
+    .replace(/[。、.,!！?？]/g,'');
+}
+function viewType(){
+  const s=state.session;const card=s.cards[s.idx];
+  return `
+  <div class="study">
+    <div class="study-top">
+      <button class="iconbtn" data-action="open" data-id="${state.deckId}">✕</button>
+      <div class="progress"><i style="width:${s.idx/s.cards.length*100}%"></i></div>
+      <span class="study-count">${s.idx+1}/${s.cards.length}</span>
+    </div>
+    <div class="qbig">
+      <div class="ask">こたえを にゅうりょく</div>
+      ${card.image?`<img src="${card.image}">`:''}
+      <div class="q">${esc(card.front)}</div>
+      ${card.hint?`<div class="mut" style="margin-top:8px">💡 ${esc(card.hint)}</div>`:''}
+    </div>
+    <input class="input" id="typeIn" placeholder="ここに こたえを かいてね" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="done">
+    <div class="typefb" id="typefb"></div>
+    <div style="margin-top:14px" id="typebtns">
+      <button class="btn block" id="checkBtn" data-action="typecheck">こたえあわせ</button>
+    </div>
+  </div>`;
+}
+function wireType(){
+  const inp=$('#typeIn');inp.focus();
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();typecheck();}});
+}
+function typecheck(){
+  const s=state.session;const card=s.cards[s.idx];const inp=$('#typeIn');
+  if(s.answered){typeNext();return;}
+  s.answered=true;
+  const ok=normalize(inp.value)===normalize(card.back) && inp.value.trim()!=='';
+  const fb=$('#typefb');inp.disabled=true;
+  if(ok){fb.className='typefb ok';fb.innerHTML='⭕ せいかい！';card.box=Math.min(5,(card.box||0)+1);s.correct++;burst(0.5,0.4);}
+  else{fb.className='typefb ng';fb.innerHTML='✕ おしい！<span class="ans">こたえ：'+esc(card.back)+'</span>';card.box=1;s.wrong++;}
+  card.last=Date.now();
+  const btns=$('#typebtns');
+  btns.innerHTML = (ok?'':'<button class="btn ghost block" data-action="typeforgive" style="margin-bottom:10px">やっぱり正解にする ⭕</button>')
+    + '<button class="btn block teal" data-action="typenext">つぎへ ›</button>';
+}
+function typeforgive(){
+  const s=state.session,card=s.cards[s.idx];
+  if(s.lastForgiven)return;s.lastForgiven=true;
+  s.wrong--;s.correct++;card.box=Math.min(5,(card.box||0)+1);
+  $('#typefb').className='typefb ok';$('#typefb').innerHTML='⭕ 正解にしたよ！';
+  burst(0.5,0.4);
+}
+function typeNext(){const s=state.session;s.answered=false;s.lastForgiven=false;s.idx++;if(s.idx>=s.cards.length)finishSession();else render();}
+
+/* =========================================================
+   FINISH + RESULT
+   ========================================================= */
+async function finishSession(){
+  const d=deckById(state.deckId);
+  await idbPut(d);
+  bumpStreak();
+  META.totalReviews=(META.totalReviews||0)+state.session.cards.length;saveMeta();
+  go('result');
+  setTimeout(()=>burst(0.5,0.35,160),150);
+}
+function viewResult(){
+  const s=state.session;const total=s.correct+s.wrong;
+  const pct=total?Math.round(s.correct/total*100):0;
+  let title,msg;
+  if(pct===100){title='かんぺき！すごい！';msg='ぜんもん せいかい！天才だ ✨';}
+  else if(pct>=80){title='いいかんじ！';msg='その調子！もう少しでマスター 💪';}
+  else if(pct>=50){title='よくがんばった！';msg='くりかえせば ぜったい おぼえられるよ';}
+  else{title='ナイス チャレンジ！';msg='まちがえたところを もう一回やってみよう';}
+  return `
+  <div class="result">
+    ${mascotSVG(120,pct>=80?'happy':'cheer')}
+    <div class="score pop">${pct}<span style="font-size:30px">点</span></div>
+    <h2>${title}</h2>
+    <p>${msg}</p>
+    <div class="chip" style="margin-top:10px">⭕ ${s.correct}　✕ ${s.wrong}　・　${total}もん</div>
+    <div class="resbtns">
+      <button class="btn lg block teal" data-action="restart">もう一回 やる 🔄</button>
+      <button class="btn lg block ghost" data-action="open" data-id="${state.deckId}">暗記帳に もどる</button>
+    </div>
+  </div>`;
+}
+
+/* =========================================================
+   MODALS  (deck / card / bulk / menu)
+   ========================================================= */
+let modalState={};
+function openModal(html){
+  closeModal();
+  const bg=document.createElement('div');bg.className='modal-bg';bg.id='modalbg';
+  bg.innerHTML=`<div class="modal">${html}</div>`;
+  bg.addEventListener('click',e=>{if(e.target===bg)closeModal();});
+  document.body.appendChild(bg);
+}
+function closeModal(){const m=$('#modalbg');if(m)m.remove();modalState={};}
+
+/* ----- deck editor ----- */
+function deckModal(deck){
+  const isNew=!deck;
+  modalState={deck:deck?{...deck}:{id:uid(),name:'',emoji:'📘',color:'pink',cards:[],createdAt:Date.now()}};
+  const d=modalState.deck;
+  const sws=DECK_COLORS.map(c=>`<div class="sw ${d.color===c[0]?'on':''}" style="background:linear-gradient(135deg,${c[1]},${c[2]})" data-swatch="${c[0]}"></div>`).join('');
+  const eps=DECK_EMOJI.map(e=>`<div class="ep ${d.emoji===e?'on':''}" data-emoji="${e}">${e}</div>`).join('');
+  openModal(`
+    <div class="mh"><h3>${isNew?'新しい暗記帳':'暗記帳を編集'}</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <label class="fld"><span class="lab">📕 なまえ</span>
+        <input class="input" id="dName" value="${esc(d.name)}" placeholder="れい：中1 英単語" maxlength="40"></label>
+      <label class="fld"><span class="lab">🎨 いろ</span></label><div class="palette" id="dPalette">${sws}</div>
+      <label class="fld"><span class="lab">😀 アイコン</span></label><div class="emojipick" id="dEmoji">${eps}</div>
+      <div style="display:flex;gap:10px;margin-top:22px">
+        ${isNew?'':'<button class="btn ghost sm" data-action="deldeck">🗑️ 削除</button>'}
+        <button class="btn block" data-action="savedeck">${isNew?'つくる':'保存する'}</button>
+      </div>
+    </div>`);
+  $('#dPalette').addEventListener('click',e=>{const sw=e.target.closest('[data-swatch]');if(!sw)return;d.color=sw.dataset.swatch;$$('#dPalette .sw').forEach(x=>x.classList.toggle('on',x===sw));});
+  $('#dEmoji').addEventListener('click',e=>{const ep=e.target.closest('[data-emoji]');if(!ep)return;d.emoji=ep.dataset.emoji;$$('#dEmoji .ep').forEach(x=>x.classList.toggle('on',x===ep));});
+}
+async function savedeck(){
+  const d=modalState.deck;d.name=$('#dName').value.trim()||'なまえなし暗記帳';
+  const existing=deckById(d.id);
+  if(existing){Object.assign(existing,{name:d.name,emoji:d.emoji,color:d.color});await idbPut(existing);}
+  else{DECKS.push(d);await idbPut(d);}
+  closeModal();
+  if(!existing){state.deckId=d.id;go('deck');toast('暗記帳をつくったよ！🎉');}
+  else render();
+}
+async function deldeck(){
+  const d=modalState.deck;
+  if(!confirm(`「${d.name}」を削除します。カードも全部消えます。よろしいですか？`))return;
+  await idbDel(d.id);DECKS=DECKS.filter(x=>x.id!==d.id);closeModal();go('home');toast('削除しました');
+}
+
+/* ----- card editor ----- */
+function cardModal(card){
+  const d=deckById(state.deckId);const isNew=!card;
+  modalState={card:card?{...card}:{id:uid(),front:'',back:'',hint:'',image:null,box:0},isNew};
+  const c=modalState.card;
+  openModal(`
+    <div class="mh"><h3>${isNew?'カードを追加':'カードを編集'}</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div class="photobox" id="photobox">${cardPhotoHTML(c)}</div>
+      <div id="ocrArea"></div>
+      <label class="fld"><span class="lab">❓ もんだい（おもて）</span>
+        <textarea class="ta" id="cFront" placeholder="れい：apple / 「光合成」の英語 など">${esc(c.front)}</textarea></label>
+      <label class="fld"><span class="lab">⭕ こたえ（うら）</span>
+        <textarea class="ta" id="cBack" placeholder="れい：りんご / photosynthesis など">${esc(c.back)}</textarea></label>
+      <label class="fld"><span class="lab">💡 ヒント（任意）</span>
+        <input class="input" id="cHint" value="${esc(c.hint||'')}" placeholder="おぼえるためのヒント"></label>
+      <div style="display:flex;gap:10px;margin-top:22px">
+        ${isNew?'':'<button class="btn ghost sm" data-action="delcard">🗑️</button>'}
+        <button class="btn block teal" data-action="savecard">${isNew?'追加する':'保存する'}</button>
+      </div>
+    </div>`);
+}
+function cardPhotoHTML(c){
+  if(c.image){
+    return `<img src="${c.image}" id="cImg">
+      <div class="photo-actions">
+        <button class="btn ghost sm" data-action="ocr">🔎 写真の文字を読み取る</button>
+        <button class="btn ghost sm" data-action="rmphoto">🗑️ 写真を消す</button>
+      </div>`;
+  }
+  return `<div style="font-size:40px">📷</div><div class="mut" style="margin:6px 0 12px">写真をつけると おぼえやすいよ</div>
+    <div class="photo-actions">
+      <button class="btn sm" data-action="cam">カメラで撮る</button>
+      <button class="btn ghost sm" data-action="pick">画像をえらぶ</button>
+    </div>`;
+}
+async function savecard(){
+  const d=deckById(state.deckId);const c=modalState.card;
+  c.front=$('#cFront').value.trim();c.back=$('#cBack').value.trim();c.hint=$('#cHint').value.trim();
+  if(!c.front && !c.back && !c.image){toast('もんだいか こたえを入れてね');return;}
+  if(modalState.isNew){d.cards.push(c);} else {const idx=d.cards.findIndex(x=>x.id===c.id);if(idx>=0)d.cards[idx]=c;}
+  await idbPut(d);closeModal();render();toast(modalState.isNew?'カードを追加！':'保存したよ');
+}
+async function delcard(){
+  const d=deckById(state.deckId);const c=modalState.card;
+  if(!confirm('このカードを削除しますか？'))return;
+  d.cards=d.cards.filter(x=>x.id!==c.id);await idbPut(d);closeModal();render();toast('削除しました');
+}
+
+/* photo capture into card */
+function refreshPhotoBox(){const pb=$('#photobox');if(pb)pb.innerHTML=cardPhotoHTML(modalState.card);}
+async function handlePhoto(file){
+  if(!file)return;
+  toast('写真を読み込み中…');
+  try{
+    modalState.card.image=await fileToDataURL(file);
+    refreshPhotoBox();
+  }catch(e){toast('写真の読み込みに失敗しました');}
+}
+
+/* ----- OCR (端末内・任意・遅延ロード) ----- */
+let _tessReady=null;
+function loadTesseract(){
+  if(_tessReady)return _tessReady;
+  _tessReady=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload=()=>res(window.Tesseract);
+    s.onerror=()=>{_tessReady=null;rej(new Error('load'));};
+    document.head.appendChild(s);
+  });
+  return _tessReady;
+}
+async function runOCR(imageURL,onProgress){
+  const T=await loadTesseract();
+  const {data}=await T.recognize(imageURL,'jpn+eng',{logger:m=>{if(m.status==='recognizing text'&&onProgress)onProgress(m.progress);}});
+  return data.text||'';
+}
+async function ocrToCard(){
+  const c=modalState.card;if(!c.image)return;
+  const area=$('#ocrArea');area.innerHTML=`<div class="panel" style="margin-top:10px"><div class="mut">📡 読み取り中… <span id="ocrPct">0%</span><br><span style="font-size:11px">※初回はファイルの取得に少し時間がかかります（オフライン時は使えません）</span></div></div>`;
+  try{
+    const text=await runOCR(c.image,p=>{const e=$('#ocrPct');if(e)e.textContent=Math.round(p*100)+'%';});
+    const lines=text.split('\n').map(s=>s.trim()).filter(Boolean);
+    area.innerHTML=`<div class="panel" style="margin-top:10px">
+      <div class="lab" style="font-weight:800;margin-bottom:6px">🔎 読み取り結果（タップで入れる）</div>
+      <div class="mut" style="margin-bottom:8px">行をタップ → もんだい/こたえ に入れられます</div>
+      ${lines.map(l=>`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+          <div style="flex:1;background:#fff;border:2px solid var(--line);border-radius:10px;padding:7px 10px;font-size:14px">${esc(l)}</div>
+          <button class="btn sm" data-ocrset="front" data-val="${esc(l)}">問</button>
+          <button class="btn sm teal" data-ocrset="back" data-val="${esc(l)}">答</button>
+        </div>`).join('')||'<div class="mut">文字が読み取れませんでした</div>'}
+    </div>`;
+    area.querySelectorAll('[data-ocrset]').forEach(b=>b.addEventListener('click',()=>{
+      const t=b.dataset.ocrset==='front'?$('#cFront'):$('#cBack');
+      t.value=(t.value?t.value+' ':'')+b.dataset.val;
+    }));
+  }catch(e){
+    area.innerHTML=`<div class="panel" style="margin-top:10px"><div class="mut">読み取りに失敗しました。インターネット接続をご確認ください（この機能のみ初回にデータ取得が必要です）。手入力でもOKです。</div></div>`;
+  }
+}
+
+/* ----- bulk from photo ----- */
+function bulkModal(){
+  modalState={bulkImage:null};
+  openModal(`
+    <div class="mh"><h3>📷 写真からまとめて作る</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div class="mut" style="margin-bottom:8px">単語リストなどを撮影 → 文字を読み取り → 1行ずつカードに。<br>「英単語<b>　</b>意味」のように区切ると、おもて／うらに自動で分けます。</div>
+      <div class="photobox" id="bulkPhoto">
+        <div style="font-size:40px">📷</div>
+        <div class="photo-actions" style="margin-top:10px">
+          <button class="btn sm" data-action="bcam">カメラで撮る</button>
+          <button class="btn ghost sm" data-action="bpick">画像をえらぶ</button>
+        </div>
+      </div>
+      <div id="bulkOcr"></div>
+      <label class="fld"><span class="lab">📝 内容（1行＝1カード）</span>
+        <textarea class="ta" id="bulkText" style="min-height:140px" placeholder="apple りんご&#10;dog いぬ&#10;光合成 photosynthesis"></textarea></label>
+      <div class="mut" style="margin-top:6px">区切り：スペース / タブ / コンマ / 「：」 など</div>
+      <div style="margin-top:18px"><button class="btn block teal" data-action="bulkmake">この内容でカードを作る</button></div>
+    </div>`);
+}
+async function handleBulkPhoto(file){
+  if(!file)return;
+  const box=$('#bulkOcr');box.innerHTML=`<div class="panel" style="margin:10px 0"><div class="mut">📡 読み取り中… <span id="bPct">0%</span></div></div>`;
+  try{
+    const url=await fileToDataURL(file);
+    const text=await runOCR(url,p=>{const e=$('#bPct');if(e)e.textContent=Math.round(p*100)+'%';});
+    $('#bulkText').value=text.split('\n').map(s=>s.trim()).filter(Boolean).join('\n');
+    box.innerHTML=`<div class="mut" style="margin:8px 0">✅ 読み取りました。下で確認・修正してね。</div>`;
+  }catch(e){
+    box.innerHTML=`<div class="panel" style="margin:10px 0"><div class="mut">読み取りに失敗しました。手入力でもカードは作れます。</div></div>`;
+  }
+}
+function parseLine(line){
+  const seps=[/\t/,/[:：]/,/[,，、]/,/\s{2,}/,/[　]/,/\s/];
+  for(const re of seps){const m=line.split(re);if(m.length>=2){const f=m[0].trim();const b=m.slice(1).join(' ').trim();if(f&&b)return[f,b];}}
+  return [line.trim(),''];
+}
+async function bulkmake(){
+  let targetDeck=deckById(state.deckId);
+  if(!targetDeck){
+    // ホームから来た場合：新しい暗記帳を作る
+    targetDeck={id:uid(),name:'写真からつくった暗記帳',emoji:'📷',color:'sky',cards:[],createdAt:Date.now()};
+    DECKS.push(targetDeck);
+  }
+  const lines=$('#bulkText').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!lines.length){toast('内容が空です');return;}
+  let n=0;
+  for(const line of lines){const [f,b]=parseLine(line);targetDeck.cards.push({id:uid(),front:f,back:b,hint:'',image:null,box:0});n++;}
+  await idbPut(targetDeck);
+  closeModal();state.deckId=targetDeck.id;go('deck');toast(n+'まいのカードを作ったよ！🎉');
+}
+
+/* ----- menu (export/import/sample) ----- */
+function menuModal(){
+  openModal(`
+    <div class="mh"><h3>⚙️ メニュー</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div class="mut" style="margin-bottom:10px">データはこの端末のブラウザに保存されます。<br>バックアップや、他の人とのきょうゆうに ↓ を使ってね。</div>
+      <button class="btn block ghost" data-action="export" style="margin-bottom:10px">📤 ぜんぶ書き出す（バックアップ）</button>
+      <button class="btn block ghost" data-action="import" style="margin-bottom:10px">📥 読み込む（ファイルから）</button>
+      <hr class="dash">
+      <button class="btn block ghost" data-action="addsample" style="margin-bottom:10px">🎁 サンプル暗記帳を入れる</button>
+      <div class="mut center" style="margin-top:16px">すごい暗記帳 v1 ・ 写真でおぼえる暗記アプリ</div>
+    </div>`);
+}
+function exportData(){
+  const data={app:'sugoi-anki',version:1,exportedAt:new Date().toISOString(),decks:DECKS};
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='sugoi-anki-backup.json';a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast('書き出しました 📤');
+}
+async function importData(file){
+  try{
+    const text=await file.text();const data=JSON.parse(text);
+    const incoming=Array.isArray(data)?data:(data.decks||[]);
+    if(!incoming.length){toast('暗記帳が見つかりませんでした');return;}
+    let added=0;
+    for(const d of incoming){
+      d.id=d.id&&!deckById(d.id)?d.id:uid();
+      d.cards=(d.cards||[]).map(c=>({id:c.id||uid(),front:c.front||'',back:c.back||'',hint:c.hint||'',image:c.image||null,box:c.box||0}));
+      DECKS.push(d);await idbPut(d);added++;
+    }
+    closeModal();go('home');toast(added+'この暗記帳を読み込みました 🎉');
+  }catch(e){toast('読み込みに失敗しました');}
+}
+
+/* =========================================================
+   SAMPLE DATA (初回シード)
+   ========================================================= */
+function sampleDecks(){
+  return [
+    {id:uid(),name:'英単語スタート',emoji:'🔤',color:'pink',createdAt:Date.now(),cards:[
+      mk('apple','りんご'),mk('dog','いぬ'),mk('book','本'),mk('water','水'),mk('friend','友だち'),mk('school','学校'),
+    ]},
+    {id:uid(),name:'都道府県の県庁所在地',emoji:'🏯',color:'teal',createdAt:Date.now(),cards:[
+      mk('北海道','札幌市'),mk('岩手県','盛岡市'),mk('宮城県','仙台市'),mk('神奈川県','横浜市'),mk('愛知県','名古屋市'),mk('沖縄県','那覇市'),
+    ]},
+  ];
+  function mk(f,b){return {id:uid(),front:f,back:b,hint:'',image:null,box:0};}
+}
+async function addSample(){
+  for(const d of sampleDecks()){DECKS.push(d);await idbPut(d);}
+  closeModal&&closeModal();go('home');toast('サンプルを入れました 🎁');
+}
+
+/* =========================================================
+   CONFETTI 🎉
+   ========================================================= */
+let cf={c:null,ctx:null,parts:[],raf:0};
+function initConfetti(){
+  cf.c=$('#confetti');cf.ctx=cf.c.getContext('2d');resizeCf();
+  window.addEventListener('resize',resizeCf);
+}
+function resizeCf(){if(!cf.c)return;cf.c.width=innerWidth;cf.c.height=innerHeight;}
+function burst(x=0.5,y=0.4,count=90){
+  const cols=['#FF6F8F','#1FC3B0','#FFC23C','#54C4F2','#A98BF0','#8BC53F'];
+  for(let i=0;i<count;i++){
+    cf.parts.push({x:cf.c.width*x,y:cf.c.height*y,
+      vx:(Math.random()-0.5)*12,vy:(Math.random()*-12-4),
+      g:0.35+Math.random()*0.2,s:6+Math.random()*7,
+      col:cols[i%cols.length],rot:Math.random()*6,vr:(Math.random()-0.5)*0.4,life:60+Math.random()*40});
+  }
+  if(!cf.raf)stepCf();
+}
+function stepCf(){
+  const {ctx,c}=cf;ctx.clearRect(0,0,c.width,c.height);
+  cf.parts=cf.parts.filter(p=>p.life>0);
+  for(const p of cf.parts){
+    p.vy+=p.g;p.x+=p.vx;p.y+=p.vy;p.rot+=p.vr;p.life--;p.vx*=0.99;
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot);ctx.fillStyle=p.col;ctx.globalAlpha=Math.min(1,p.life/30);
+    ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6);ctx.restore();
+  }
+  if(cf.parts.length)cf.raf=requestAnimationFrame(stepCf);else{cf.raf=0;ctx.clearRect(0,0,c.width,c.height);}
+}
+
+/* =========================================================
+   MASCOT (inline SVG)  — まる文字えんぴつくん
+   ========================================================= */
+function mascotSVG(size=64,mood='normal'){
+  const happy = mood!=='normal';
+  return `<svg class="mascot" width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <ellipse cx="50" cy="90" rx="26" ry="5" fill="#000" opacity=".08"/>
+    <rect x="30" y="14" width="40" height="62" rx="20" fill="#FFD86B"/>
+    <rect x="30" y="14" width="40" height="14" rx="13" fill="#FF9FB3"/>
+    <path d="M30 64 q20 14 40 0 v-2 q-20 12 -40 0z" fill="#F2B33D"/>
+    <path d="M34 72 l16 16 16-16 q-16 10 -32 0z" fill="#F6D7A6"/>
+    <path d="M44 80 l6 8 6-8z" fill="#5B4636"/>
+    <circle cx="42" cy="44" r="4.4" fill="#3B362E"/>
+    <circle cx="58" cy="44" r="4.4" fill="#3B362E"/>
+    <circle cx="43.4" cy="42.6" r="1.5" fill="#fff"/>
+    <circle cx="59.4" cy="42.6" r="1.5" fill="#fff"/>
+    ${happy
+      ? '<path d="M42 52 q8 8 16 0" stroke="#3B362E" stroke-width="3" stroke-linecap="round" fill="none"/>'
+      : '<path d="M44 53 q6 4 12 0" stroke="#3B362E" stroke-width="3" stroke-linecap="round" fill="none"/>'}
+    <circle cx="36" cy="51" r="3.4" fill="#FF9FB3" opacity=".7"/>
+    <circle cx="64" cy="51" r="3.4" fill="#FF9FB3" opacity=".7"/>
+    ${happy?'<path d="M16 30 l3 6 6 3 -6 3 -3 6 -3-6 -6-3 6-3z" fill="#FFC23C"/><path d="M80 20 l2 4 4 2 -4 2 -2 4 -2-4 -4-2 4-2z" fill="#54C4F2"/>':''}
+  </svg>`;
+}
+
+/* =========================================================
+   EVENT DELEGATION
+   ========================================================= */
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('[data-action]');if(!t)return;
+  const a=t.dataset.action;const id=t.dataset.id;
+  switch(a){
+    case 'home': go('home');break;
+    case 'open': state.deckId=id;go('deck');break;
+    case 'newdeck': deckModal(null);break;
+    case 'editdeck': deckModal(deckById(state.deckId));break;
+    case 'savedeck': savedeck();break;
+    case 'deldeck': deldeck();break;
+    case 'newcard': cardModal(null);break;
+    case 'editcard': cardModal(deckById(state.deckId).cards.find(c=>c.id===id));break;
+    case 'savecard': savecard();break;
+    case 'delcard': delcard();break;
+    case 'closeModal': closeModal();break;
+    case 'start': startSession(t.dataset.mode);break;
+    case 'restart': startSession(state.session.mode);break;
+    case 'qnext': qnext();break;
+    case 'typecheck': typecheck();break;
+    case 'typenext': typeNext();break;
+    case 'typeforgive': typeforgive();break;
+    case 'cam': triggerFile('fileCam',handlePhoto);break;
+    case 'pick': triggerFile('filePick',handlePhoto);break;
+    case 'rmphoto': modalState.card.image=null;refreshPhotoBox();break;
+    case 'ocr': ocrToCard();break;
+    case 'photoBulk0': bulkModal();break;
+    case 'photoBulk1': bulkModal();break;
+    case 'bcam': triggerFile('fileCam',handleBulkPhoto);break;
+    case 'bpick': triggerFile('filePick',handleBulkPhoto);break;
+    case 'bulkmake': bulkmake();break;
+    case 'menu': menuModal();break;
+    case 'export': exportData();break;
+    case 'import': triggerFile('fileImport',importData);break;
+    case 'addsample': addSample();break;
+  }
+});
+
+let _fileCb=null;
+function triggerFile(inputId,cb){const inp=$('#'+inputId);_fileCb=cb;inp.value='';inp.click();}
+['fileCam','filePick','fileImport'].forEach(idn=>{
+  $('#'+idn).addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f&&_fileCb)_fileCb(f);});
+});
+
+/* =========================================================
+   Service worker（オフライン対応・https/localhost のときだけ登録）
+   ========================================================= */
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+async function init(){
+  initConfetti();
+  try{
+    await openDB();
+    DECKS=await idbAll();
+    DECKS.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+    if(DECKS.length===0 && !localStorage.getItem('sugoi-seeded')){
+      for(const d of sampleDecks()){DECKS.push(d);await idbPut(d);}
+      localStorage.setItem('sugoi-seeded','1');
+    }
+  }catch(err){
+    $('#app').innerHTML=`<div class="empty"><p>このブラウザでは保存機能が使えないようです。<br>Chrome や Edge で開くか、ファイルをサーバー上に置いてお試しください。</p><p class="mut">${esc(err.message||err)}</p></div>`;
+    return;
+  }
+  render();
+}
+init();
+</script>
+</body>
+</html>
