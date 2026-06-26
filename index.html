@@ -410,13 +410,55 @@ function calendarHTML(){
   }
   return '<div class="cal">'+out.join('')+'</div>';
 }
+let speakToken=0;
+function stopSpeak(){ speakToken++; try{ speechSynthesis.cancel(); }catch(_){} }
+/* 読み上げ前の整形（誤読対策）: 改行→間、丸数字→「Nばん」、記号除去 */
+function ttsClean(text){
+  return String(text||'')
+    .replace(/[\r\n]+/g,'、')
+    .replace(/[①②③④⑤⑥⑦⑧⑨⑩]/g,m=>'、'+('①②③④⑤⑥⑦⑧⑨⑩'.indexOf(m)+1)+'ばん、')
+    .replace(/[：:]/g,'、')
+    .replace(/[／/]/g,'、')
+    .replace(/[「」『』【】（）()]/g,' ')
+    .replace(/[ \t　]+/g,' ')
+    .replace(/(?:\s*、\s*)+/g,'、')
+    .replace(/^[、\s]+|[、\s]+$/g,'')
+    .trim();
+}
 function speak(text){
   try{
     if(!('speechSynthesis' in window)||!text)return;
-    const u=new SpeechSynthesisUtterance(text);
-    u.lang=/[぀-ヿ㐀-鿿]/.test(text)?'ja-JP':'en-US';
-    u.rate=0.95; speechSynthesis.cancel(); speechSynthesis.speak(u);
+    speechSynthesis.cancel();
+    speakChunks(ttsClean(text), null);
   }catch(e){}
+}
+/* 文を短いチャンクに分割し、onend で順送り（Chromeの約15秒打ち切り回避＆長文でも最後まで） */
+function speakChunks(text, onDone){
+  const my=++speakToken;
+  const s=String(text||''); const parts=[]; let buf='';
+  for(const ch of s){
+    buf+=ch;
+    if('。．！？、'.indexOf(ch)>=0 && buf.length>=14){ parts.push(buf); buf=''; }
+    else if(buf.length>=55){ parts.push(buf); buf=''; }
+  }
+  if(buf.trim())parts.push(buf);
+  if(!('speechSynthesis' in window)||!parts.length){ if(onDone)onDone(); return; }
+  const isJa=/[぀-ヿ㐀-鿿]/.test(s);
+  let i=0;
+  const next=()=>{
+    if(my!==speakToken)return;
+    if(i>=parts.length){ if(onDone&&my===speakToken)onDone(); return; }
+    const part=parts[i++]; let done=false;
+    const adv=()=>{ if(done)return; done=true; if(my===speakToken)next(); };
+    try{
+      const u=new SpeechSynthesisUtterance(part);
+      u.lang=isJa?'ja-JP':'en-US'; u.rate=0.95;
+      u.onend=adv; u.onerror=adv;
+      speechSynthesis.speak(u);
+      setTimeout(adv, Math.min(16000, part.length*230+2500)); // 保険: onend不発でも進む
+    }catch(e){ adv(); }
+  };
+  next();
 }
 function qSide(card){ return (state.session&&state.session.reverse)?card.back:card.front; }
 function aSide(card){ return (state.session&&state.session.reverse)?card.front:card.back; }
@@ -507,7 +549,7 @@ function render(){
   if(state.view==='listen') wireListen();
 }
 
-function go(view,opts={}){ if(state.view==='listen'&&view!=='listen'){listenToken++;try{speechSynthesis.cancel();}catch(_){}} state.view=view;if(view==='home')state.deckId=null;Object.assign(state,opts);render();}
+function go(view,opts={}){ if(state.view==='listen'&&view!=='listen'){listenToken++;stopSpeak();} state.view=view;if(view==='home')state.deckId=null;Object.assign(state,opts);render();}
 
 /* ---------- HOME ---------- */
 function viewHome(){
@@ -1484,7 +1526,7 @@ function viewListen(){
     </div>
   </div>`;
 }
-function listenDur(t){ return Math.min(6000, Math.max(1200, String(t||'').length*130+700)); }
+/* listenDur は廃止: 読み上げ完了(onend)で次へ進むため固定時間は不要 */
 function paintListen(){
   const s=state.session; if(!s||s.mode!=='listen')return; const card=s.cards[s.idx]; if(!card)return;
   const c=$('.study-count'); if(c)c.textContent=(s.idx+1)+'/'+s.cards.length;
@@ -1497,13 +1539,19 @@ function listenTick(tok){
   if(tok!==listenToken)return; const s=state.session; if(!s||s.mode!=='listen'||s.paused)return;
   if(s.idx>=s.cards.length){ finishListen(); return; }
   const card=s.cards[s.idx];
-  s.phase='q'; paintListen(); speak(qSide(card));
-  setTimeout(()=>{ if(tok!==listenToken||s.paused)return;
-    s.phase='a'; paintListen(); speak(aSide(card));
-    setTimeout(()=>{ if(tok!==listenToken||s.paused)return; s.idx++;
-      setTimeout(()=>listenTick(tok), 250);
-    }, listenDur(aSide(card))+400);
-  }, listenDur(qSide(card))+300);
+  s.phase='q'; paintListen();
+  try{speechSynthesis.cancel();}catch(_){}
+  speakChunks(ttsClean(qSide(card)), ()=>{        // 問題を最後まで読み終えたら
+    if(tok!==listenToken||s.paused)return;
+    setTimeout(()=>{
+      if(tok!==listenToken||s.paused)return;
+      s.phase='a'; paintListen();
+      speakChunks(ttsClean(aSide(card)), ()=>{    // 答えも最後まで読み終えたら
+        if(tok!==listenToken||s.paused)return;
+        setTimeout(()=>{ if(tok!==listenToken||s.paused)return; s.idx++; listenTick(tok); }, 800);
+      });
+    }, 500);
+  });
 }
 function finishListen(){
   const s=state.session; const n=s?s.cards.length:0;
@@ -1749,7 +1797,7 @@ document.addEventListener('click',async e=>{
     case 'cropcard': if(modalState.card&&modalState.card.image)cropInline($('#photobox'),modalState.card.image,out=>{if(out)modalState.card.image=out;refreshPhotoBox();});break;
     case 'cropbulk': if(modalState.bulkImage)cropInline($('#bulkPhoto'),modalState.bulkImage,out=>{if(out)modalState.bulkImage=out;refreshBulkPhoto();});break;
     case 'listen': startListen();break;
-    case 'listentoggle': if(state.session){state.session.paused=!state.session.paused;try{speechSynthesis.cancel();}catch(_){}render();}break;
+    case 'listentoggle': if(state.session){state.session.paused=!state.session.paused;stopSpeak();render();}break;
     case 'syncsettings': syncSettingsModal();break;
     case 'syncsave': syncSave();break;
     case 'syncoff': syncOff();break;
