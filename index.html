@@ -1387,32 +1387,34 @@ function finishListen(){
   toast('聞き流し かんりょう！🎧'); go('deck');
 }
 
-/* ====== クラウド同期（任意・Firebase。設定はこの端末に保存・写真とAPIキーは同期しない） ====== */
-let _fbReady=null,_syncDb=null,_syncUnsub=null,_syncApplying=false,_syncTimer=null,syncStatus='off';
-function syncCfg(){ try{return JSON.parse(localStorage.getItem('pasha-sync-config')||'null');}catch(e){return null;} }
+/* ====== クラウド同期（任意・Supabase。設定はこの端末に保存・写真とAPIキーは同期しない） ====== */
+let _sbReady=null,_sb=null,_syncCh=null,_syncApplying=false,_syncTimer=null,syncStatus='off';
+function syncUrl(){ return (localStorage.getItem('pasha-sync-url')||'').replace(/\/+$/,''); }
+function syncKey(){ return localStorage.getItem('pasha-sync-key')||''; }
 function syncCode(){ return localStorage.getItem('pasha-sync-code')||''; }
-function syncOn(){ return localStorage.getItem('pasha-sync-on')==='1' && !!syncCfg() && !!syncCode(); }
+function syncOn(){ return localStorage.getItem('pasha-sync-on')==='1' && !!syncUrl() && !!syncKey() && !!syncCode(); }
 function deviceId(){ let d=localStorage.getItem('pasha-device'); if(!d){d='dv'+Math.random().toString(36).slice(2,10); try{localStorage.setItem('pasha-device',d);}catch(e){}} return d; }
 function loadScript(src){ return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('読込失敗'));document.head.appendChild(s);}); }
-function loadFirebase(){ if(_fbReady)return _fbReady; _fbReady=loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js')
-  .then(()=>loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js'))
-  .then(()=>window.firebase).catch(e=>{_fbReady=null;throw e;}); return _fbReady; }
+function loadSupabase(){ if(_sbReady)return _sbReady; _sbReady=loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2').then(()=>window.supabase).catch(e=>{_sbReady=null;throw e;}); return _sbReady; }
 async function startSync(){
-  if(!syncOn())return; const cfg=syncCfg();
+  if(!syncOn())return;
   try{
-    const fb=await loadFirebase();
-    if(!fb.apps||!fb.apps.length){ fb.initializeApp(cfg); }
-    _syncDb=fb.firestore();
-    const ref=_syncDb.collection('families').doc(syncCode());
-    const snap=await ref.get();
-    if(snap.exists&&snap.data()){ await applyRemote(snap.data(), true); }
+    const lib=await loadSupabase();
+    _sb=lib.createClient(syncUrl(), syncKey());
+    const code=syncCode();
+    const {data:row,error}=await _sb.from('families').select('data,updated_by').eq('code',code).maybeSingle();
+    if(error)throw error;
+    if(row&&row.data){ await applyRemote(row.data, true); }
     await pushNow();
-    if(_syncUnsub)_syncUnsub();
-    _syncUnsub=ref.onSnapshot(s=>{ if(!s.exists)return; const d=s.data(); if(!d||d.updatedBy===deviceId())return; applyRemote(d,false); }, e=>{ syncStatus='エラー'; });
+    if(_syncCh){try{_sb.removeChannel(_syncCh);}catch(e){}}
+    _syncCh=_sb.channel('fam-'+code)
+      .on('postgres_changes',{event:'*',schema:'public',table:'families',filter:'code=eq.'+code}, payload=>{
+        const r=payload&&payload.new; if(!r||r.updated_by===deviceId())return; if(r.data)applyRemote(r.data,false);
+      }).subscribe();
     syncStatus='接続中'; toast('クラウド同期：接続しました ☁️');
-  }catch(e){ syncStatus='エラー：'+((e&&e.message)||''); toast('同期エラー：設定/ルールをご確認ください'); }
+  }catch(e){ syncStatus='エラー：'+((e&&e.message)||''); toast('同期エラー：URL/キー/テーブル設定をご確認ください'); }
 }
-function stopSync(){ if(_syncUnsub){try{_syncUnsub();}catch(e){}_syncUnsub=null;} _syncDb=null; syncStatus='off'; }
+function stopSync(){ if(_syncCh&&_sb){try{_sb.removeChannel(_syncCh);}catch(e){}} _syncCh=null; _sb=null; syncStatus='off'; }
 async function applyRemote(data, merge){
   _syncApplying=true;
   try{
@@ -1425,26 +1427,29 @@ async function applyRemote(data, merge){
     applyGrade(); if(state.view==='home'||state.view==='deck')render();
   }catch(e){} finally{ _syncApplying=false; }
 }
-function scheduleSync(){ if(!syncOn()||_syncApplying||!_syncDb)return; clearTimeout(_syncTimer); _syncTimer=setTimeout(pushNow,1200); }
+function scheduleSync(){ if(!syncOn()||_syncApplying||!_sb)return; clearTimeout(_syncTimer); _syncTimer=setTimeout(pushNow,1200); }
 async function pushNow(){
-  if(!_syncDb||!syncOn())return;
+  if(!_sb||!syncOn())return;
   try{
     const decks=DECKS.map(d=>({id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0}))}));
     const meta={streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{},grade:META.grade||''};
-    await _syncDb.collection('families').doc(syncCode()).set({decks,meta,updatedAt:Date.now(),updatedBy:deviceId()});
+    const {error}=await _sb.from('families').upsert({code:syncCode(),data:{decks,meta},updated_by:deviceId(),updated_at:Date.now()});
+    if(error)syncStatus='エラー：'+(error.message||'');
   }catch(e){ syncStatus='エラー：'+((e&&e.message)||''); }
 }
 function parseFbConfig(text){ try{ const m=String(text).match(/\{[\s\S]*\}/); if(!m)return null; return (new Function('return ('+m[0]+')'))(); }catch(e){ return null; } }
 function syncSettingsModal(){
-  const cfg=syncCfg(); const code=syncCode(); const on=syncOn();
+  const url=syncUrl(); const key=syncKey(); const code=syncCode(); const on=syncOn();
   openModal(`<div class="mh"><h3>☁️ クラウド同期</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
     <div class="mb">
-      <div class="mut" style="margin-bottom:10px">複数の端末を自動で同期します（任意）。<b>あなた自身の無料Firebase</b>を使い、データ（カードの文字・学習記録）はそこに保存されます。<b>写真とAPIキーは同期しません</b>。同じ設定＋同じ「家族コード」を入れた端末どうしが同期します。${on?'<br><b style="color:var(--teal-d)">現在：同期オン（'+esc(syncStatus)+'）</b>':''}</div>
-      <label class="fld"><span class="lab">🔧 Firebase設定（コンソールでコピーした firebaseConfig を貼り付け）</span>
-        <textarea class="ta" id="syncCfg" style="min-height:120px;font-size:12px" placeholder="{ apiKey: '...', projectId: '...', ... }">${cfg?esc(JSON.stringify(cfg,null,1)):''}</textarea></label>
+      <div class="mut" style="margin-bottom:10px">複数の端末を自動で同期します（任意）。<b>あなた自身の無料Supabase</b>を使い、データ（カードの文字・学習記録）はそこに保存されます。<b>写真とAPIキーは同期しません</b>。同じURL・キー＋同じ「家族コード」を入れた端末どうしが同期します。${on?'<br><b style="color:var(--teal-d)">現在：同期オン（'+esc(syncStatus)+'）</b>':''}</div>
+      <label class="fld"><span class="lab">🔗 Project URL（Supabase → Settings → API）</span>
+        <input class="input" id="syncUrl" value="${esc(url)}" placeholder="https://xxxx.supabase.co" autocomplete="off"></label>
+      <label class="fld"><span class="lab">🔑 anon public キー</span>
+        <textarea class="ta" id="syncKey" style="min-height:80px;font-size:12px" placeholder="eyJhbGci...（anon public key）">${esc(key)}</textarea></label>
       <label class="fld"><span class="lab">👨‍👩‍👧 家族コード（合言葉・両方の端末で同じものを）</span>
         <div style="display:flex;gap:8px"><input class="input" id="syncCode" value="${esc(code)}" placeholder="例：fam-xxxx..." autocomplete="off"><button class="btn ghost sm" data-action="synccoderand">ランダム</button></div></label>
-      <div class="mut" style="margin-top:8px">※家族コードは合言葉です。知っている人はアクセスできるので、推測されにくい長めのものに（「ランダム」推奨）。作成手順は別途ご案内します。</div>
+      <div class="mut" style="margin-top:8px">※家族コードは合言葉です。推測されにくい長めのものに（「ランダム」推奨）。作成手順は別途ご案内します。</div>
       <div class="macts">
         ${on?'<button class="btn ghost sm" data-action="syncoff">同期を解除</button>':''}
         <button class="btn block teal" data-action="syncsave">${on?'更新して再接続':'同期を有効にする'}</button>
@@ -1453,10 +1458,11 @@ function syncSettingsModal(){
 }
 function synccoderand(){ const el=$('#syncCode'); if(el)el.value='fam-'+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,8); }
 async function syncSave(){
-  const cfg=parseFbConfig($('#syncCfg').value); const code=$('#syncCode').value.trim();
-  if(!cfg||!cfg.projectId){ toast('Firebase設定が読み取れません（貼り付けを確認）'); return; }
+  const url=$('#syncUrl').value.trim(); const key=$('#syncKey').value.trim(); const code=$('#syncCode').value.trim();
+  if(!/^https:\/\/.+\.supabase\.co/.test(url)){ toast('Project URL を確認（https://xxxx.supabase.co）'); return; }
+  if(!key){ toast('anon public キーを入れてね'); return; }
   if(!code){ toast('家族コードを入れてね'); return; }
-  try{ localStorage.setItem('pasha-sync-config',JSON.stringify(cfg)); localStorage.setItem('pasha-sync-code',code); localStorage.setItem('pasha-sync-on','1'); }catch(e){}
+  try{ localStorage.setItem('pasha-sync-url',url); localStorage.setItem('pasha-sync-key',key); localStorage.setItem('pasha-sync-code',code); localStorage.setItem('pasha-sync-on','1'); }catch(e){}
   stopSync(); closeModal(); toast('同期を有効にしました ☁️'); startSync();
 }
 function syncOff(){ try{localStorage.setItem('pasha-sync-on','');}catch(e){} stopSync(); closeModal(); toast('同期を解除しました'); }
