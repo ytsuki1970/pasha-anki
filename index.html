@@ -681,7 +681,7 @@ function viewDeck(){
 
   <div style="display:flex;gap:10px;margin:14px 0">
     <button class="btn block" data-action="newcard">＋ カードを追加</button>
-    <button class="btn ghost sm" data-action="photoBulk1" title="写真からまとめて作る">📷</button>
+    <button class="btn ghost sm" data-action="photoBulk1" title="写真・PDFからまとめて作る">📷📄</button>
   </div>
 
   <div class="sectionhead rise"><h2>カード一覧</h2><span class="line"></span></div>
@@ -1668,6 +1668,8 @@ function menuModal(){
   openModal(`
     <div class="mh"><h3>⚙️ メニュー</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
     <div class="mb">
+      <button class="btn block teal" data-action="photoBulk0" style="margin-bottom:12px">📷📄 写真・PDFから問題を作る</button>
+      <hr class="dash">
       <div class="mut" style="margin-bottom:10px">データはこの端末のブラウザに保存されます。<br>バックアップや、他の人とのきょうゆうに ↓ を使ってね。</div>
       <button class="btn block ghost" data-action="export" style="margin-bottom:10px">📤 ぜんぶ書き出す（バックアップ）</button>
       <button class="btn block ghost" data-action="import" style="margin-bottom:10px">📥 読み込む（ファイルから）</button>
