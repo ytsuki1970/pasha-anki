@@ -513,6 +513,7 @@ function render(){
   const app=$('#app');
   if(state.view==='home') app.innerHTML=viewHome();
   else if(state.view==='deck') app.innerHTML=viewDeck();
+  else if(state.view==='cloze') app.innerHTML=viewCloze();
   else if(state.view==='flash') app.innerHTML=viewFlash();
   else if(state.view==='quiz') app.innerHTML=viewQuiz();
   else if(state.view==='type') app.innerHTML=viewType();
@@ -659,12 +660,61 @@ function viewDeck(){
     <button class="btn block" data-action="addcard">＋ カードを追加</button>
   </div>
 
+  ${(d.sheets&&d.sheets.length)?`
+  <div class="sectionhead rise"><h2>📝 穴埋めシート</h2><span class="line"></span></div>
+  ${d.sheets.map(s=>`<div class="cardrow rise" data-action="clozeopen" data-id="${s.id}">
+    <div class="thumb ph">📝</div>
+    <div class="ft"><div class="q">穴埋めシート（${(s.answers||[]).length}問）</div><div class="a">タップで解く・空欄タップで答え</div></div>
+    <button class="speakbtn" data-action="clozedel" data-id="${s.id}" title="削除">🗑️</button>
+  </div>`).join('')}
+  `:''}
+
   <div class="sectionhead rise"><h2>カード一覧</h2><span class="line"></span></div>
   ${d.cards.length? cards : emptyCards()}
   `;
 }
 function emptyCards(){
   return `<div class="empty">${mascotSVG(110)}<p>まだカードがないよ。<br>「＋カードを追加」か「📷写真から」で作ってみよう！</p></div>`;
+}
+
+/* ---------- 穴埋めシート（読み込んだ文章を丸ごと1画面・空欄タップで答え表示） ---------- */
+function clozeSheetFromText(text){
+  const parts=String(text||'').split(/[。\.!?！？\n]+/).map(s=>s.trim()).filter(s=>s.length>=6);
+  const lines=[]; const answers=[];
+  for(const s of parts){
+    const kw=pickKeyword(s);
+    if(kw){ const idx=answers.length; const line=s.replace(kw,'{{'+idx+'}}'); if(line!==s){ answers.push(kw); lines.push(line); continue; } }
+    lines.push(s);
+  }
+  return {template:lines.join('\n'), answers};
+}
+function clozeHTML(sheet){
+  let html=esc(sheet.template||'');
+  html=html.replace(/\{\{(\d+)\}\}/g,function(m,i){ const a=(sheet.answers||[])[+i]||''; return '<span class="cloze-blank" data-action="clozeblank" data-ans="'+esc(a)+'" style="display:inline-block;min-width:54px;text-align:center;border-bottom:3px solid var(--pink-d);color:var(--pink-d);font-weight:800;cursor:pointer;padding:0 8px;border-radius:6px">____</span>'; });
+  return html.replace(/\n/g,'<br>');
+}
+function viewCloze(){
+  const d=deckById(state.deckId); if(!d){go('home');return '';}
+  const sheet=(d.sheets||[]).find(s=>s.id===state.sheetId); if(!sheet){go('deck');return '';}
+  const col=colorVars(d.color);
+  return `
+  <button class="backbtn" data-action="deck">‹ もどる</button>
+  <div class="deckhero rise" style="background:linear-gradient(140deg,${col.c},${col.d})">
+    <span class="emoji">📝</span>
+    <h1>穴埋めシート</h1>
+    <div class="sub">${(sheet.answers||[]).length}問 ・ 空欄をタップで答え</div>
+  </div>
+  <div class="rise" style="display:flex;gap:8px;margin:12px 0">
+    <button class="btn ghost sm" data-action="clozeshowall">👁️ ぜんぶ表示</button>
+    <button class="btn ghost sm" data-action="clozehideall">🙈 ぜんぶ隠す</button>
+  </div>
+  <div class="panel rise" style="line-height:2.4;font-size:17px;word-break:break-word">${clozeHTML(sheet)}</div>
+  `;
+}
+async function clozeDel(id){
+  const d=deckById(state.deckId); if(!d)return;
+  if(!confirm('この穴埋めシートを削除します。よろしいですか？'))return;
+  d.sheets=(d.sheets||[]).filter(s=>s.id!==id); await idbPut(d); go('deck'); toast('削除しました');
 }
 
 /* =========================================================
@@ -1171,15 +1221,19 @@ async function bulkmake(){
   let targetDeck=deckById(state.deckId);
   if(!targetDeck){ targetDeck={id:uid(),name:'写真からつくった暗記帳',emoji:'📷',color:'sky',cards:[],createdAt:Date.now()}; DECKS.push(targetDeck); }
   const raw=$('#bulkText').value;
-  let pairs=[];
   if(modalState.bulkMode==='cloze'){
-    pairs=clozeFromText(raw);
-    if(!pairs.length){toast('穴埋めを作れる文が見つかりませんでした');return;}
-  }else{
-    const lines=raw.split('\n').map(s=>s.trim()).filter(Boolean);
-    if(!lines.length){toast('内容が空です');return;}
-    pairs=lines.map(parseLine);
+    const sheet=clozeSheetFromText(raw);
+    if(!sheet.answers.length){toast('穴埋めを作れる文が見つかりませんでした');return;}
+    targetDeck.sheets=targetDeck.sheets||[];
+    const sid=uid();
+    targetDeck.sheets.push({id:sid,template:sheet.template,answers:sheet.answers,createdAt:Date.now()});
+    await idbPut(targetDeck);
+    closeModal(); state.deckId=targetDeck.id; state.sheetId=sid; go('cloze'); toast('穴埋めシートを作ったよ！📝');
+    return;
   }
+  const lines=raw.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!lines.length){toast('内容が空です');return;}
+  const pairs=lines.map(parseLine);
   for(const p of pairs){targetDeck.cards.push({id:uid(),front:p[0],back:p[1],hint:'',image:null,box:0});}
   await idbPut(targetDeck);
   closeModal();state.deckId=targetDeck.id;go('deck');toast(pairs.length+'まいのカードを作ったよ！🎉');
@@ -1583,7 +1637,8 @@ function stopChannels(){ if(_sb){ for(const k in _syncChs){ try{_sb.removeChanne
 function stopSync(){ stopChannels(); _sb=null; syncStatus='off'; }
 function normalizeDeck(d, isShared, imgMap){
   return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||Date.now(),shared:!!isShared,
-    cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0,image:imgMap[c.id]||null}))};
+    cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0,image:imgMap[c.id]||null})),
+    sheets:((d.sheets)||[]).map(s=>({id:s.id,template:s.template||'',answers:(s.answers)||[],createdAt:s.createdAt||0}))};
 }
 async function applyRemoteSpace(kind, data, merge){
   _syncApplying=true;
@@ -1601,7 +1656,7 @@ async function applyRemoteSpace(kind, data, merge){
   }catch(e){} finally{ _syncApplying=false; }
 }
 function scheduleSync(){ if(!syncOn()||_syncApplying||!_sb)return; clearTimeout(_syncTimer); _syncTimer=setTimeout(pushNow,1200); }
-function serializeDeck(d){ return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0}))}; }
+function serializeDeck(d){ return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0})),sheets:((d.sheets)||[]).map(s=>({id:s.id,template:s.template||'',answers:(s.answers)||[],createdAt:s.createdAt||0}))}; }
 function serializeMeta(){ return {streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{}}; }
 async function pushNow(){
   if(!_sb||!syncOn())return;
@@ -1771,6 +1826,12 @@ document.addEventListener('click',async e=>{
     case 'setgoal': goalModal();break;
     case 'goalset': setGoal(t.dataset.goal);break;
     case 'open': state.deckId=id;go('deck');break;
+    case 'deck': go('deck');break;
+    case 'clozeopen': state.sheetId=id;go('cloze');break;
+    case 'clozedel': clozeDel(id);break;
+    case 'clozeblank': { const on=t.getAttribute('data-on')==='1'; if(on){t.textContent='____';t.removeAttribute('data-on');t.style.background='transparent';} else {t.textContent=t.dataset.ans||'？';t.setAttribute('data-on','1');t.style.background='var(--yellow)';} break; }
+    case 'clozeshowall': $$('.cloze-blank').forEach(b=>{b.textContent=b.dataset.ans||'？';b.setAttribute('data-on','1');b.style.background='var(--yellow)';});break;
+    case 'clozehideall': $$('.cloze-blank').forEach(b=>{b.textContent='____';b.removeAttribute('data-on');b.style.background='transparent';});break;
     case 'newdeck': deckModal(null);break;
     case 'newshareddeck': deckModal(null,{shared:true});break;
     case 'editdeck': deckModal(deckById(id||state.deckId));break;
