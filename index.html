@@ -419,6 +419,7 @@ function calendarHTML(){
   return '<div class="cal">'+out.join('')+'</div>';
 }
 let speakToken=0;
+const REPEAT_GAP=700; // 2回くりかえし読むときの、1回目と2回目のあいだ（ミリ秒）
 function stopSpeak(){ speakToken++; try{ speechSynthesis.cancel(); }catch(_){} }
 /* 読み上げ前の整形（誤読対策）: 改行→間、丸数字→「Nばん」、記号除去 */
 function ttsClean(text){
@@ -438,7 +439,7 @@ function speak(text){
     if(!('speechSynthesis' in window)||!text)return;
     speechSynthesis.cancel();
     const t=ttsClean(text);
-    speakChunks(t, function(){ speakChunks(t, null); }); // 2回くりかえし読む（反復で記憶に残りやすい）
+    speakChunks(t, function(){ const tk=speakToken; setTimeout(function(){ if(speakToken===tk) speakChunks(t, null); }, REPEAT_GAP); }); // 2回くりかえし読む（あいだに少し間）
   }catch(e){}
 }
 /* 文を短いチャンクに分割し、onend で順送り（Chromeの約15秒打ち切り回避＆長文でも最後まで） */
@@ -1764,20 +1765,26 @@ function listenTick(tok){
   try{speechSynthesis.cancel();}catch(_){}
   speakChunks(qt, ()=>{                 // 問題：1回目
     if(!guard())return;
-    speakChunks(qt, ()=>{               // 問題：2回目（反復）
+    setTimeout(()=>{                    // 少し間をあけて
       if(!guard())return;
-      setTimeout(()=>{
+      speakChunks(qt, ()=>{             // 問題：2回目（反復）
         if(!guard())return;
-        s.phase='a'; paintListen();
-        speakChunks(at, ()=>{           // 答え：1回目
+        setTimeout(()=>{
           if(!guard())return;
-          speakChunks(at, ()=>{         // 答え：2回目（反復）
+          s.phase='a'; paintListen();
+          speakChunks(at, ()=>{         // 答え：1回目
             if(!guard())return;
-            setTimeout(()=>{ if(!guard())return; s.idx++; listenTick(tok); }, 800);
+            setTimeout(()=>{            // 少し間をあけて
+              if(!guard())return;
+              speakChunks(at, ()=>{     // 答え：2回目（反復）
+                if(!guard())return;
+                setTimeout(()=>{ if(!guard())return; s.idx++; listenTick(tok); }, 800);
+              });
+            }, REPEAT_GAP);
           });
-        });
-      }, 500);
-    });
+        }, 500);
+      });
+    }, REPEAT_GAP);
   });
 }
 function finishListen(){
