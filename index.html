@@ -367,7 +367,7 @@ const MASTER_BOX = 4; // box>=4 を「おぼえた」とする（最大5）
 
 /* ---------- tiny IndexedDB wrapper ---------- */
 const DB_NAME='sugoi-anki', STORE='decks';
-const APP_VER='v32'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
+const APP_VER='v33'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
 let _db=null;
 function openDB(){
   return new Promise((res,rej)=>{
@@ -1944,6 +1944,7 @@ function syncSettingsModal(){
       <div class="mut" style="margin-top:8px">※合言葉は「部屋のカギ」です。<b>専用</b>はあなたの端末だけ同じに、<b>家族共有</b>は家族全員で同じ文字にします。推測されにくい長めのものに（「ランダム」推奨）。単語帳ごとに「自分用／家族共有」を切り替えられます。</div>
       <div class="mut" style="margin-top:8px;font-size:11px">この端末のバージョン：<b>${APP_VER}</b>（写真の同期はv31以降。家族の端末も同じ版にしてね）</div>
       ${on?'<button class="btn block ghost" data-action="syncpush" style="margin-top:10px">🔄 今すぐ同期（この端末の内容を写真ごとアップロード）</button>':''}
+      ${(on&&shared)?'<button class="btn block ghost" data-action="syncinvite" style="margin-top:8px">👨‍👩‍👧 家族を招待（リンクをコピー）</button>':''}
       <div class="macts">
         ${on?'<button class="btn ghost sm" data-action="syncoff">同期を解除</button>':''}
         <button class="btn block teal" data-action="syncsave">${on?'更新して再接続':'同期を有効にする'}</button>
@@ -1961,6 +1962,17 @@ async function syncSave(){
   stopSync(); closeModal(); toast('同期を有効にしました ☁️'); startSync();
 }
 function syncOff(){ try{localStorage.setItem('pasha-sync-on','');}catch(e){} stopSync(); closeModal(); toast('同期を解除しました'); }
+function syncInvite(){
+  const cfg={u:syncUrl(),k:syncKey(),c:syncSharedCode()};
+  if(!cfg.u||!cfg.k||!cfg.c){ toast('先に家族共有の合言葉を設定してね'); return; }
+  const link=location.origin+location.pathname+'#join='+b64encUtf8(JSON.stringify(cfg));
+  openModal(`<div class="mh"><h3>👨‍👩‍👧 家族を招待</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div class="mut" style="margin-bottom:10px">下のリンクを<b>家族のLINEなど</b>に送ってください。受け取った人がタップして「つなぐ」を押すと、家族みんなの暗記帳（福岡検定など）がそのまま使えます。<br><b style="color:var(--pink-d)">※家族だけに送ってね（家族の合言葉が入っています）。</b></div>
+      <textarea class="ta" id="inviteLink" readonly style="min-height:120px;font-size:12px" onclick="this.select()">${esc(link)}</textarea>
+      <button class="btn block teal" data-action="invitecopy" style="margin-top:10px">📋 リンクをコピー</button>
+    </div>`);
+}
 
 /* ----- menu (export/import/sample) ----- */
 function menuModal(){
@@ -2087,6 +2099,8 @@ document.addEventListener('click',async e=>{
     case 'syncsave': syncSave();break;
     case 'syncpush': (async()=>{ if(!syncOn()){toast('先に同期をオンにしてね');return;} toast('アップロード中… ☁️'); try{ await pushNow(); toast('この端末の内容をアップロードしました ☁️'); }catch(e){ toast('アップロードに失敗しました'); } })();break;
     case 'syncoff': syncOff();break;
+    case 'syncinvite': syncInvite();break;
+    case 'invitecopy': { const el=$('#inviteLink'); if(el){ el.focus(); el.select(); try{ navigator.clipboard.writeText(el.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} toast('コピーしました 📋 LINEなどに貼り付けてね'); } break; }
     case 'synccoderand': synccoderand();break;
     case 'synccoderandshared': synccoderandshared();break;
     case 'speak': speak(t.dataset.text);break;
@@ -2170,11 +2184,28 @@ function maybeImportFromHash(){
   try{ pendingImport=JSON.parse(b64decUtf8(h.slice(3))); }catch(e){}
   try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){ location.hash=''; }
 }
+function maybeJoinFromHash(){
+  const h=location.hash||'';
+  if(h.indexOf('#join=')!==0)return;
+  let cfg=null;
+  try{ cfg=JSON.parse(b64decUtf8(h.slice(6))); }catch(e){}
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){ location.hash=''; }
+  if(!cfg||!cfg.u||!cfg.k)return;
+  if(!confirm('家族の暗記帳につなぎます。よろしいですか？\n（共有された問題が自動で入ります）'))return;
+  try{
+    localStorage.setItem('pasha-sync-url',cfg.u);
+    localStorage.setItem('pasha-sync-key',cfg.k);
+    if(cfg.c)localStorage.setItem('pasha-sync-shared',cfg.c);
+    localStorage.setItem('pasha-sync-on','1');
+  }catch(e){}
+  setTimeout(function(){ try{toast('家族の暗記帳につなぎました ☁️ 少し待つと問題が出ます');}catch(e){} },900);
+}
 async function init(){
   applyTheme();
   initConfetti();
   if('speechSynthesis' in window){ try{ allVoices(); speechSynthesis.onvoiceschanged=function(){ allVoices(); }; }catch(e){} } // 声リストを先読み
   maybeImportFromHash();
+  maybeJoinFromHash();
   try{
     await openDB();
     DECKS=await idbAll();
