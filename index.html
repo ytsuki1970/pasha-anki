@@ -467,28 +467,6 @@ function b64decUtf8(b){ return decodeURIComponent(escape(atob(b))); }
 function applyTheme(){ document.body.classList.toggle('dark',META.theme==='dark'); const m=document.querySelector('meta[name="theme-color"]'); if(m)m.setAttribute('content',META.theme==='dark'?'#221d19':'#FBF4E6'); }
 function toggleTheme(){ META.theme=(META.theme==='dark')?'light':'dark'; saveMeta(); applyTheme(); menuModal(); toast(META.theme==='dark'?'ダークモードにしました 🌙':'ライトモードにしました ☀️'); }
 
-/* ---------- 学年に合わせた最適化 ---------- */
-const GRADES=[
-  {k:'e12',label:'小1・2',scale:1.18,ai:'小学1〜2年生'},
-  {k:'e34',label:'小3・4',scale:1.12,ai:'小学3〜4年生'},
-  {k:'e56',label:'小5・6',scale:1.06,ai:'小学5〜6年生'},
-  {k:'jh',label:'中学生',scale:1.0,ai:'中学生'},
-  {k:'hs',label:'高校生',scale:0.98,ai:'高校生'},
-  {k:'ad',label:'大人',scale:1.0,ai:'大人（資格・語学など）'}
-];
-function gradeObj(){ return GRADES.find(g=>g.k===META.grade)||null; }
-function applyGrade(){ const g=gradeObj(); document.documentElement.style.setProperty('--bigscale', g?g.scale:1); }
-function gradeModal(){
-  const cur=META.grade;
-  const opts=GRADES.map(g=>`<button class="btn ${g.k===cur?'':'ghost'} sm" data-action="gradeset" data-g="${g.k}">${g.label}</button>`).join('');
-  openModal(`<div class="mh"><h3>🎓 学年をえらぶ</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
-    <div class="mb">
-      <div class="mut" style="margin-bottom:12px">学年に合わせて、文字の大きさやAIが作る問題の難しさを調整します。あとから変更できます。</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">${opts}</div>
-    </div>`);
-}
-function setGrade(k){ META.grade=k; saveMeta(); applyGrade(); closeModal(); go('home'); const g=gradeObj(); toast((g?g.label:'')+' に合わせました 🎓'); }
-
 function uid(){return 'id'+Math.random().toString(36).slice(2,10)+(performance.now()|0).toString(36);}
 function deckById(id){return DECKS.find(d=>d.id===id);}
 function todayStr(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
@@ -589,8 +567,6 @@ function viewHome(){
   ${DECKS.length?(due>0
     ? `<button class="btn lg block teal rise" data-action="review" style="margin:8px 0 2px">📅 今日のおさらい（${due}枚）</button>`
     : `<div class="panel rise" style="text-align:center;margin:8px 0 2px;font-weight:800">✅ 今日のおさらいは ぜんぶ完了！えらい！</div>`):''}
-
-  ${!META.grade?`<button class="btn block ghost sm rise" data-action="gradesel" style="margin:6px 0 2px">🎓 学年をえらぶ（文字やAIが学年に合います）</button>`:''}
 
   <div class="stats rise">
     <div class="stat"><div class="n">${streak}</div><div class="l">れんぞく日数 🔥</div><span class="ic">🔥</span></div>
@@ -1253,8 +1229,7 @@ async function aiGenerateFromImage(dataURL){
   const comma=dataURL.indexOf(',');
   const b64=dataURL.slice(comma+1);
   const mt=(dataURL.slice(5,comma).split(';')[0])||'image/jpeg';
-  const _g=gradeObj(); const _gh=_g?('対象は'+_g.ai+'。その学年に合った難しさ・言葉づかい・分量で作ってください。'):'';
-  const prompt='あなたは小中高生の学習を助ける先生です。'+_gh+'この画像（教科書・ノート・単語リストなど）から暗記カードを作ってください。各カードは front（覚える語・問い）と back（答え・意味）のペアです。画像内の主要な学習項目を漏れなく、子どもが覚えやすい簡潔な形に。英単語なら front=英語 / back=日本語。社会や理科の用語は front=用語や問い / back=答えや説明。出力は次のJSONのみで、前後に説明やマークダウンを一切付けないこと:\n{"cards":[{"front":"...","back":"..."}]}';
+  const prompt='あなたは小中高生の学習を助ける先生です。この画像（教科書・ノート・単語リストなど）から暗記カードを作ってください。各カードは front（覚える語・問い）と back（答え・意味）のペアです。画像内の主要な学習項目を漏れなく、子どもが覚えやすい簡潔な形に。英単語なら front=英語 / back=日本語。社会や理科の用語は front=用語や問い / back=答えや説明。出力は次のJSONのみで、前後に説明やマークダウンを一切付けないこと:\n{"cards":[{"front":"...","back":"..."}]}';
   const res=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -1270,8 +1245,7 @@ async function aiGenerateFromImage(dataURL){
 }
 async function aiGenerateFromText(srcText){
   const key=loadApiKey(); if(!key)throw new Error('NO_KEY');
-  const _g=gradeObj(); const _gh=_g?('対象は'+_g.ai+'。その学年に合った難しさ・言葉づかい・分量で作ってください。'):'';
-  const prompt='あなたは小中高生の学習を助ける先生です。'+_gh+'次の文章（教科書・プリント・PDF・単語リストなど）から暗記カードを作ってください。各カードは front（覚える語・問い）と back（答え・意味）のペアです。重要な学習項目を漏れなく、子どもが覚えやすい簡潔な形に。英単語なら front=英語 / back=日本語。社会や理科の用語は front=用語や問い / back=答えや説明。出力は次のJSONのみで、前後に説明やマークダウンを一切付けないこと:\n{"cards":[{"front":"...","back":"..."}]}\n\n=== 文章 ===\n'+String(srcText||'').slice(0,12000);
+  const prompt='あなたは小中高生の学習を助ける先生です。次の文章（教科書・プリント・PDF・単語リストなど）から暗記カードを作ってください。各カードは front（覚える語・問い）と back（答え・意味）のペアです。重要な学習項目を漏れなく、子どもが覚えやすい簡潔な形に。英単語なら front=英語 / back=日本語。社会や理科の用語は front=用語や問い / back=答えや説明。出力は次のJSONのみで、前後に説明やマークダウンを一切付けないこと:\n{"cards":[{"front":"...","back":"..."}]}\n\n=== 文章 ===\n'+String(srcText||'').slice(0,12000);
   const res=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -1621,14 +1595,14 @@ async function applyRemoteSpace(kind, data, merge){
     const otherSpace=DECKS.filter(d=> isShared ? !isSharedDeck(d) : isSharedDeck(d) );   // 別スペースのデッキは温存
     const kept = merge ? DECKS.filter(d=> (isShared?isSharedDeck(d):!isSharedDeck(d)) && !rid.has(d.id)) : []; // 初回接続：ローカル分も残す
     DECKS = otherSpace.concat(remoteDecks, kept);
-    if(!isShared && data.meta){ const m=data.meta; META.streak=m.streak||0; META.lastDay=m.lastDay||''; META.totalReviews=m.totalReviews||0; META.dailyGoal=m.dailyGoal||META.dailyGoal||10; META.history=m.history||{}; if(m.grade)META.grade=m.grade; saveMeta(); }
+    if(!isShared && data.meta){ const m=data.meta; META.streak=m.streak||0; META.lastDay=m.lastDay||''; META.totalReviews=m.totalReviews||0; META.dailyGoal=m.dailyGoal||META.dailyGoal||10; META.history=m.history||{}; saveMeta(); }
     for(const d of remoteDecks){ await idbPut(d); }
-    applyGrade(); if(state.view==='home'||state.view==='deck')render();
+    if(state.view==='home'||state.view==='deck')render();
   }catch(e){} finally{ _syncApplying=false; }
 }
 function scheduleSync(){ if(!syncOn()||_syncApplying||!_sb)return; clearTimeout(_syncTimer); _syncTimer=setTimeout(pushNow,1200); }
 function serializeDeck(d){ return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0}))}; }
-function serializeMeta(){ return {streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{},grade:META.grade||''}; }
+function serializeMeta(){ return {streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{}}; }
 async function pushNow(){
   if(!_sb||!syncOn())return;
   try{
@@ -1686,10 +1660,8 @@ function menuModal(){
       <button class="btn block ghost" data-action="import" style="margin-bottom:10px">📥 読み込む（ファイルから）</button>
       <hr class="dash">
       <button class="btn block ghost" data-action="aisettings" style="margin-bottom:10px">✨ AI設定（撮るだけ自動生成）</button>
-      <button class="btn block ghost" data-action="gradesel" style="margin-bottom:10px">🎓 学年：${(gradeObj()&&gradeObj().label)||'みせってい'}</button>
       <button class="btn block ghost" data-action="toggletheme" style="margin-bottom:10px">${META.theme==='dark'?'☀️ ライトモードにする':'🌙 ダークモードにする'}</button>
       <button class="btn block ghost" data-action="syncsettings" style="margin-bottom:10px">☁️ クラウド同期${syncOn()?'（オン）':''}</button>
-      <button class="btn block ghost" data-action="addsample" style="margin-bottom:10px">🎁 サンプル暗記帳を入れる</button>
       <div class="mut center" style="margin-top:16px">パシャ暗記 ・ 写真でおぼえる暗記アプリ</div>
     </div>`);
 }
@@ -1714,25 +1686,6 @@ async function importData(file){
     }
     closeModal();go('home');toast(added+'この暗記帳を読み込みました 🎉');
   }catch(e){toast('読み込みに失敗しました');}
-}
-
-/* =========================================================
-   SAMPLE DATA (初回シード)
-   ========================================================= */
-function sampleDecks(){
-  return [
-    {id:uid(),name:'英単語スタート',emoji:'🔤',color:'pink',createdAt:Date.now(),cards:[
-      mk('apple','りんご'),mk('dog','いぬ'),mk('book','本'),mk('water','水'),mk('friend','友だち'),mk('school','学校'),
-    ]},
-    {id:uid(),name:'都道府県の県庁所在地',emoji:'🏯',color:'teal',createdAt:Date.now(),cards:[
-      mk('北海道','札幌市'),mk('岩手県','盛岡市'),mk('宮城県','仙台市'),mk('神奈川県','横浜市'),mk('愛知県','名古屋市'),mk('沖縄県','那覇市'),
-    ]},
-  ];
-  function mk(f,b){return {id:uid(),front:f,back:b,hint:'',image:null,box:0};}
-}
-async function addSample(){
-  for(const d of sampleDecks()){DECKS.push(d);await idbPut(d);}
-  closeModal&&closeModal();go('home');toast('サンプルを入れました 🎁');
 }
 
 /* =========================================================
@@ -1805,8 +1758,6 @@ document.addEventListener('click',async e=>{
     case 'copylink': copylink();break;
     case 'doimport': doImport();break;
     case 'toggletheme': toggleTheme();break;
-    case 'gradesel': gradeModal();break;
-    case 'gradeset': setGrade(t.dataset.g);break;
     case 'cropcard': if(modalState.card&&modalState.card.image)cropInline($('#photobox'),modalState.card.image,out=>{if(out)modalState.card.image=out;refreshPhotoBox();});break;
     case 'cropbulk': if(modalState.bulkImage)cropInline($('#bulkPhoto'),modalState.bulkImage,out=>{if(out)modalState.bulkImage=out;refreshBulkPhoto();});break;
     case 'listen': startListen();break;
@@ -1858,7 +1809,6 @@ document.addEventListener('click',async e=>{
     case 'menu': menuModal();break;
     case 'export': exportData();break;
     case 'import': triggerFile('fileImport',importData);break;
-    case 'addsample': addSample();break;
   }
 });
 
@@ -1891,17 +1841,12 @@ function maybeImportFromHash(){
 }
 async function init(){
   applyTheme();
-  applyGrade();
   initConfetti();
   maybeImportFromHash();
   try{
     await openDB();
     DECKS=await idbAll();
     DECKS.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-    if(DECKS.length===0 && !localStorage.getItem('sugoi-seeded')){
-      for(const d of sampleDecks()){DECKS.push(d);await idbPut(d);}
-      localStorage.setItem('sugoi-seeded','1');
-    }
   }catch(err){
     $('#app').innerHTML=`<div class="empty"><p>このブラウザでは保存機能が使えないようです。<br>Chrome や Edge で開くか、ファイルをサーバー上に置いてお試しください。</p><p class="mut">${esc(err.message||err)}</p></div>`;
     return;
