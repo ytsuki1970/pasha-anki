@@ -679,9 +679,8 @@ function viewDeck(){
 
   <button class="btn block sky rise" data-action="listen" ${d.cards.length?'':'disabled'} style="margin:0 0 4px">🎧 聞き流し（自動で読み上げ）</button>
 
-  <div style="display:flex;gap:10px;margin:14px 0">
-    <button class="btn block" data-action="newcard">＋ カードを追加</button>
-    <button class="btn ghost sm" data-action="photoBulk1" title="写真・PDFからまとめて作る">📷📄</button>
+  <div style="margin:14px 0">
+    <button class="btn block" data-action="addcard">＋ カードを追加</button>
   </div>
 
   <div class="sectionhead rise"><h2>カード一覧</h2><span class="line"></span></div>
@@ -975,6 +974,18 @@ async function deldeck(){
   const d=modalState.deck;
   if(!confirm(`「${d.name}」を削除します。カードも全部消えます。よろしいですか？`))return;
   await idbDel(d.id);DECKS=DECKS.filter(x=>x.id!==d.id);closeModal();go('home');toast('削除しました');
+}
+
+/* ----- カード追加のえらぶ画面（手入力／写真・PDFまとめて） ----- */
+function addChooserModal(){
+  openModal(`
+    <div class="mh"><h3>＋ カードを追加</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div class="mut" style="margin-bottom:12px">どうやって追加しますか？</div>
+      <button class="btn block" data-action="newcard" style="margin-bottom:10px">✍️ 手で1枚ずつ作る</button>
+      <button class="btn block teal" data-action="photoBulk1">📷📄 写真・PDFでまとめて作る</button>
+      <div class="mut" style="margin-top:10px;font-size:12px">「まとめて」は、写真やPDFから一気にカードを作れます（AIも使えます）。</div>
+    </div>`);
 }
 
 /* ----- card editor ----- */
@@ -1814,6 +1825,7 @@ document.addEventListener('click',async e=>{
     case 'editdeck': deckModal(deckById(id||state.deckId));break;
     case 'savedeck': savedeck();break;
     case 'deldeck': deldeck();break;
+    case 'addcard': addChooserModal();break;
     case 'newcard': cardModal(null);break;
     case 'editcard': cardModal(deckById(state.deckId).cards.find(c=>c.id===id));break;
     case 'savecard': savecard();break;

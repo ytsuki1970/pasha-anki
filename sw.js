@@ -1,5 +1,5 @@
 /* パシャ暗記 — service worker (app shell cache / offline) */
-const CACHE = 'pasha-anki-v17';
+const CACHE = 'pasha-anki-v18';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
