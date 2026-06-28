@@ -1884,7 +1884,7 @@ function stopChannels(){ if(_sb){ for(const k in _syncChs){ try{_sb.removeChanne
 function stopSync(){ stopChannels(); _sb=null; syncStatus='off'; }
 function normalizeDeck(d, isShared, imgMap){
   return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||Date.now(),shared:!!isShared,
-    cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0,image:imgMap[c.id]||null})),
+    cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0,image:(c.image||imgMap[c.id]||null)})),
     sheets:((d.sheets)||[]).map(s=>({id:s.id,template:s.template||'',answers:(s.answers)||[],createdAt:s.createdAt||0}))};
 }
 async function applyRemoteSpace(kind, data, merge){
@@ -1912,7 +1912,7 @@ async function applyRemoteSpace(kind, data, merge){
   if(needRepush){ try{ pushNow(); }catch(e){} } // 削除を相手にも反映させる
 }
 function scheduleSync(){ if(!syncOn()||_syncApplying||!_sb)return; clearTimeout(_syncTimer); _syncTimer=setTimeout(pushNow,1200); }
-function serializeDeck(d){ return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0})),sheets:((d.sheets)||[]).map(s=>({id:s.id,template:s.template||'',answers:(s.answers)||[],createdAt:s.createdAt||0}))}; }
+function serializeDeck(d){ return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0,image:c.image||null})),sheets:((d.sheets)||[]).map(s=>({id:s.id,template:s.template||'',answers:(s.answers)||[],createdAt:s.createdAt||0}))}; }
 function serializeMeta(){ return {streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{},accHist:META.accHist||{}}; }
 async function pushNow(){
   if(!_sb||!syncOn())return;
