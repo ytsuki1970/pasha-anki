@@ -437,7 +437,8 @@ function speak(text){
   try{
     if(!('speechSynthesis' in window)||!text)return;
     speechSynthesis.cancel();
-    speakChunks(ttsClean(text), null);
+    const t=ttsClean(text);
+    speakChunks(t, function(){ speakChunks(t, null); }); // 2回くりかえし読む（反復で記憶に残りやすい）
   }catch(e){}
 }
 /* 文を短いチャンクに分割し、onend で順送り（Chromeの約15秒打ち切り回避＆長文でも最後まで） */
