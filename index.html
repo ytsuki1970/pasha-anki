@@ -421,6 +421,56 @@ function calendarHTML(){
 let speakToken=0;
 const REPEAT_GAP=700; // 2回くりかえし読むときの、1回目と2回目のあいだ（ミリ秒）
 function stopSpeak(){ speakToken++; try{ speechSynthesis.cancel(); }catch(_){} }
+/* 声の選択（無料・端末内蔵の声を使う。なめらかな声があれば自動で選ぶ／手動でも選べる） */
+function allVoices(){ try{ return speechSynthesis.getVoices()||[]; }catch(e){ return []; } }
+function voicePref(isJa){ try{ return localStorage.getItem(isJa?'pasha-voice-ja':'pasha-voice-en')||''; }catch(e){ return ''; } }
+function pickVoice(isJa){
+  const voices=allVoices(); if(!voices.length)return null;
+  const pref=voicePref(isJa); if(pref){ const pv=voices.find(v=>v.name===pref); if(pv)return pv; }
+  const w=isJa?'ja':'en';
+  const cand=voices.filter(v=>(v.lang||'').toLowerCase().indexOf(w)===0);
+  if(!cand.length)return null;
+  const score=v=>{ let s=0; const n=v.name||'';
+    if(/premium|enhanced|neural|natural|拡張|高品質|siri/i.test(n))s+=10;
+    if(/google/i.test(n))s+=5;
+    if(isJa&&/(kyoko|o-?ren|otoya|hattori|サキ|キョーコ)/i.test(n))s+=3;
+    if(v.default)s+=1; return s; };
+  return cand.slice().sort((a,b)=>score(b)-score(a))[0];
+}
+function speakSample(isJa, voiceName){
+  try{ if(!('speechSynthesis' in window))return; speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(isJa?'こんにちは。これは音声のテストです。':'Hello. This is a voice test.');
+    u.lang=isJa?'ja-JP':'en-US'; u.rate=0.95;
+    let v=null; if(voiceName)v=allVoices().find(x=>x.name===voiceName); if(!v)v=pickVoice(isJa); if(v)u.voice=v;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function voiceModal(){
+  const voices=allVoices();
+  const ja=voices.filter(v=>(v.lang||'').toLowerCase().indexOf('ja')===0);
+  const en=voices.filter(v=>(v.lang||'').toLowerCase().indexOf('en')===0);
+  const opt=(list,pref)=>['<option value="">（自動で いちばん良い声）</option>'].concat(list.map(v=>`<option value="${esc(v.name)}" ${v.name===pref?'selected':''}>${esc(v.name)}</option>`)).join('');
+  const none=!voices.length;
+  openModal(`<div class="mh"><h3>🔊 音声設定</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+   <div class="mb">
+    <div class="mut" style="margin-bottom:10px">読み上げの声を選べます（<b>無料</b>・端末に入っている声を使います）。${none?'<br><b>この端末では声が見つかりませんでした。</b>下の方法で追加してみてください。':'いちばん良い声を自動で選びますが、手動でも選べます。'}</div>
+    <label class="fld"><span class="lab">🇯🇵 日本語の声</span>
+      <select class="input" id="voiceJa">${opt(ja,voicePref(true))}</select></label>
+    <button class="btn ghost sm" data-action="voicetest" data-l="ja" style="margin:2px 0 12px">🔊 日本語をためす</button>
+    <label class="fld"><span class="lab">🔤 英語の声</span>
+      <select class="input" id="voiceEn">${opt(en,voicePref(false))}</select></label>
+    <button class="btn ghost sm" data-action="voicetest" data-l="en" style="margin:2px 0 12px">🔊 英語をためす</button>
+    <div class="mut" style="font-size:12px;line-height:1.8;border-top:1px dashed var(--line);padding-top:10px;margin-top:6px">
+      <b>もっとなめらかな声を入れる（無料）</b><br>
+      ・iPhone / iPad：設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 日本語 →「拡張」や「高品質」の声をダウンロード<br>
+      ・Android：設定 → システム → テキスト読み上げ → Google音声サービスの声をダウンロード<br>
+      ・パソコン（Edge/Chrome）：「Microsoft …（Natural）」などの自然な声が選べます<br>
+      入れたあと、上のリストでその声を選んでください。
+    </div>
+   </div>`);
+  const save=()=>{ try{ const j=$('#voiceJa').value,e=$('#voiceEn').value; j?localStorage.setItem('pasha-voice-ja',j):localStorage.removeItem('pasha-voice-ja'); e?localStorage.setItem('pasha-voice-en',e):localStorage.removeItem('pasha-voice-en'); }catch(_){}};
+  const sj=$('#voiceJa'),se=$('#voiceEn'); if(sj)sj.addEventListener('change',save); if(se)se.addEventListener('change',save);
+}
 /* 読み上げ前の整形（誤読対策）: 改行→間、丸数字→「Nばん」、記号除去 */
 function ttsClean(text){
   return String(text||'')
@@ -463,6 +513,7 @@ function speakChunks(text, onDone){
     try{
       const u=new SpeechSynthesisUtterance(part);
       u.lang=isJa?'ja-JP':'en-US'; u.rate=0.95;
+      const _v=pickVoice(isJa); if(_v)u.voice=_v;     // なめらかな声があれば使う
       u.onend=adv; u.onerror=adv;
       speechSynthesis.speak(u);
       setTimeout(adv, Math.min(16000, part.length*230+2500)); // 保険: onend不発でも進む
@@ -1921,6 +1972,7 @@ function menuModal(){
       <button class="btn block ghost" data-action="import" style="margin-bottom:10px">📥 暗記帳を読み込む（書き出したファイルから）</button>
       <hr class="dash">
       <button class="btn block ghost" data-action="aisettings" style="margin-bottom:10px">✨ AI設定（撮るだけ自動生成）</button>
+      <button class="btn block ghost" data-action="voicesettings" style="margin-bottom:10px">🔊 音声設定（声をえらぶ）</button>
       <button class="btn block ghost" data-action="toggletheme" style="margin-bottom:10px">${META.theme==='dark'?'☀️ ライトモードにする':'🌙 ダークモードにする'}</button>
       <button class="btn block ghost" data-action="syncsettings" style="margin-bottom:10px">☁️ クラウド同期${syncOn()?'（オン）':''}</button>
       <div class="mut center" style="margin-top:16px">パシャ暗記 ・ 写真でおぼえる暗記アプリ</div>
@@ -2034,6 +2086,8 @@ document.addEventListener('click',async e=>{
     case 'synccoderand': synccoderand();break;
     case 'synccoderandshared': synccoderandshared();break;
     case 'speak': speak(t.dataset.text);break;
+    case 'voicesettings': voiceModal();break;
+    case 'voicetest': speakSample(t.dataset.l==='ja', (t.dataset.l==='ja'?$('#voiceJa'):$('#voiceEn')).value);break;
     case 'setgoal': goalModal();break;
     case 'goalset': setGoal(t.dataset.goal);break;
     case 'open': state.deckId=id;go('deck');break;
@@ -2115,6 +2169,7 @@ function maybeImportFromHash(){
 async function init(){
   applyTheme();
   initConfetti();
+  if('speechSynthesis' in window){ try{ allVoices(); speechSynthesis.onvoiceschanged=function(){ allVoices(); }; }catch(e){} } // 声リストを先読み
   maybeImportFromHash();
   try{
     await openDB();
