@@ -1157,49 +1157,56 @@ async function ocrToCard(){
 /* ----- bulk from photo ----- */
 function bulkModal(){
   modalState={bulkImage:null, bulkMode:'list'};
+  const hasKey=!!loadApiKey();
   openModal(`
     <div class="mh"><h3>📷📄 写真・PDFから問題を作る</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
     <div class="mb">
+      <div class="lab" style="font-weight:800;font-size:13px;margin-bottom:6px">① 何を作る？</div>
+      <div class="seg" id="bulkModeSeg">
+        <button class="segbtn on" data-bmode="list">🃏 カード</button>
+        <button class="segbtn" data-bmode="cloze">📝 穴埋めシート</button>
+      </div>
+      <div class="mut" id="bulkHowto" style="margin:8px 0 0">「英単語<b>　</b>意味」のように区切ると、おもて／うらに自動で分けます。</div>
+
+      <div class="lab" style="font-weight:800;font-size:13px;margin:16px 0 6px">② 元になる文章・写真</div>
       <div class="photobox" id="bulkPhoto">${bulkPhotoHTML()}</div>
       <div id="bulkAi" style="margin-top:10px"></div>
-      <hr class="dash">
-      <div class="lab" style="font-weight:800;font-size:13px;margin-bottom:6px">✍️ 作り方</div>
-      <div class="seg" id="bulkModeSeg">
-        <button class="segbtn on" data-bmode="list">単語＝意味</button>
-        <button class="segbtn" data-bmode="cloze">文章→穴埋め</button>
-      </div>
-      <div class="mut" id="bulkHowto" style="margin:8px 0">「英単語<b>　</b>意味」のように区切ると、おもて／うらに自動で分けます。</div>
-      <label class="fld"><span class="lab">📝 内容</span>
-        <textarea class="ta" id="bulkText" style="min-height:130px" placeholder="apple りんご&#10;dog いぬ&#10;光合成 photosynthesis"></textarea></label>
-      <div style="margin-top:16px"><button class="btn block teal" data-action="bulkmake">この内容でカードを作る</button></div>
+      <label class="fld" style="margin-top:10px"><span class="lab">📝 文章（手で入力・読み取り結果）</span>
+        <textarea class="ta" id="bulkText" style="min-height:120px" placeholder="apple りんご&#10;dog いぬ&#10;光合成 photosynthesis"></textarea></label>
+
+      <div class="lab" style="font-weight:800;font-size:13px;margin:16px 0 6px">③ 作る</div>
+      <button class="btn block teal" data-action="bulkmake" id="bulkMakeBtn">🃏 カードを作る</button>
+      ${hasKey
+        ? '<button class="btn block" data-action="bulkmakeai" id="bulkAiBtn" style="margin-top:8px">✨ AIでカードを作る</button><div class="mut" style="margin-top:6px;font-size:12px">「AIで作る」は、写真があれば写真から、なければ上の文章から、選んだ種類で賢く作ります。</div>'
+        : '<div class="mut" style="margin-top:8px;font-size:12px">✨ もっと賢く作りたいときは、右上⚙️→「AI設定」でキー登録（任意）すると「AIで作る」が使えます。</div>'}
     </div>`);
   $('#bulkModeSeg').addEventListener('click',e=>{
     const b=e.target.closest('[data-bmode]');if(!b)return;
     modalState.bulkMode=b.dataset.bmode;
     $$('#bulkModeSeg .segbtn').forEach(x=>x.classList.toggle('on',x===b));
-    $('#bulkHowto').innerHTML = modalState.bulkMode==='cloze'
-      ? '文章を貼ると、1文ずつ大事な語を ____ にした穴埋め問題を作ります。'
+    const cloze=modalState.bulkMode==='cloze';
+    $('#bulkHowto').innerHTML = cloze
+      ? '文章を入れる/写真・PDFを読み取ると、大事な語を空欄にした「穴埋めシート」を1枚作ります。'
       : '「英単語<b>　</b>意味」のように区切ると、おもて／うらに自動で分けます。';
-    $('#bulkText').setAttribute('placeholder', modalState.bulkMode==='cloze'
+    $('#bulkText').setAttribute('placeholder', cloze
       ? '光合成は葉緑体で行われる。\n鎌倉幕府は1192年に成立した。'
       : 'apple りんご\ndog いぬ\n光合成 photosynthesis');
+    const mk=$('#bulkMakeBtn'); if(mk)mk.textContent=cloze?'📝 穴埋めシートを作る':'🃏 カードを作る';
+    const ai=$('#bulkAiBtn'); if(ai)ai.textContent=cloze?'✨ AIで穴埋めシートを作る':'✨ AIでカードを作る';
   });
 }
 function bulkPhotoHTML(){
   if(modalState.bulkImage){
-    const hasKey=!!loadApiKey();
     return `<img src="${modalState.bulkImage}" style="max-height:170px;margin:0 auto 10px;border-radius:12px;box-shadow:var(--shadow)">
       <div class="photo-actions">
-        <button class="btn sm" data-action="aigen" ${hasKey?'':'disabled'}>✨ AIで問題を作る</button>
         <button class="btn ghost sm" data-action="bocr">🔎 文字を読み取る（無料）</button>
         <button class="btn ghost sm" data-action="cropbulk">✂️ 切り抜く</button>
         <button class="btn ghost sm" data-action="brm">🗑️</button>
       </div>
-      ${hasKey?'':'<div class="mut" style="margin-top:8px">✨AIを使うには 右上⚙️→「AI設定」でキー登録（任意）</div>'}`;
+      <div class="mut" style="margin-top:8px;font-size:12px">この写真は、下の③「✨ AIで作る」でそのまま読み取れます。無料で作るときは「🔎 文字を読み取る」を押してね。</div>`;
   }
-  const aiReady=!!loadApiKey();
-  return `<div style="font-size:40px">📷📄</div>
-    <div class="mut" style="margin:6px 0 12px">${aiReady?'✨ AIの準備OK！ 写真・PDFを選ぶと「✨ AIで問題を作る」が使えます':'写真を撮る／選ぶ・PDFを読み込むと ここから作れます'}</div>
+  return `<div style="font-size:38px">📷📄</div>
+    <div class="mut" style="margin:6px 0 12px">写真を撮る／画像を選ぶ／PDFを読み込む（手入力だけでもOK）</div>
     <div class="photo-actions">
       <button class="btn sm" data-action="bcam">カメラで撮る</button>
       <button class="btn ghost sm" data-action="bpick">画像をえらぶ</button>
@@ -1396,11 +1403,8 @@ async function handleBulkPdf(file){
     if(!cleaned){ setMsg('<div class="panel"><div class="mut">⚠️ 文字を取り出せませんでした。別のPDFか、写真からの取り込みをお試しください。</div></div>'); return; }
     if($('#bulkText'))$('#bulkText').value=cleaned;
     modalState.pdfText=cleaned;
-    const hasKey=!!loadApiKey();
     const capNote=r.numPages>r.maxPages?'（最初の'+r.maxPages+'ページ）':'';
-    setMsg('<div class="panel"><div class="mut">✅ PDFを読み込みました'+capNote+'（'+r.numPages+'ページ）。下で確認・修正できます。</div>'
-      +(hasKey?'<div class="photo-actions" style="margin-top:8px"><button class="btn sm" data-action="aigentext">✨ AIで問題を作る</button></div>':'<div class="mut" style="margin-top:6px;font-size:12px">✨AIで作るには 右上⚙️→「AI設定」でキー登録（任意）。下の「カードを作る」で無料の自動分割もできます。</div>')
-      +'</div>');
+    setMsg('<div class="panel"><div class="mut">✅ PDFを読み込みました'+capNote+'（'+r.numPages+'ページ）。下の②で確認・修正して、③の「作る」を押してね。</div></div>');
   }catch(e){
     setMsg('<div class="panel"><div class="mut">⚠️ PDFを読み込めませんでした（'+esc((e&&e.message)||'')+'）。通信状況をご確認ください（この機能は初回にデータ取得が必要です）。</div></div>');
   }
@@ -1424,6 +1428,67 @@ async function aigenText(){
       : /failed to fetch|networkerror|load failed/i.test(m) ? '通信できませんでした。ネット接続、またはブラウザのブロック（CORS）の可能性があります。'
       : esc(m);
     if(box)box.innerHTML='<div class="panel"><div class="mut">⚠️ '+disp+'</div></div>';
+  }
+}
+
+/* ----- AIで作る（写真/文章から、選んだ種類＝カード or 穴埋めシートを直接作成） ----- */
+function parseAiCloze(text){
+  let t=(text||'').trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+  let data=null; try{data=JSON.parse(t);}catch(e){const m=t.match(/\{[\s\S]*\}/);if(m){try{data=JSON.parse(m[0]);}catch(e2){}}}
+  const arr=data&&Array.isArray(data.items)?data.items:(Array.isArray(data)?data:[]);
+  return arr.map(it=>({sentence:String((it&&it.sentence)||'').trim(),answer:String((it&&it.answer)||'').trim()})).filter(it=>it.sentence&&it.answer);
+}
+function buildClozeFromItems(items){
+  const lines=[],answers=[];
+  (items||[]).forEach(it=>{
+    const s=it.sentence, a=it.answer;
+    if(s.indexOf(a)>=0){ lines.push(s.replace(a,'{{'+answers.length+'}}')); answers.push(a); }
+    else { lines.push(s); }
+  });
+  return {template:lines.join('\n'), answers};
+}
+const AI_CLOZE_PROMPT='あなたは小中高生の学習を助ける先生です。次の内容（教科書・プリント・PDF・写真など）から穴埋め問題を作ってください。各項目は sentence（重要事項を含む一文）と answer（その文の中で空欄にする最重要の語）。answerは必ず sentence の中にそのまま出てくる語にすること。子どもが覚えるべき要点を漏れなく、簡潔に。出力は次のJSONのみで、前後に説明やマークダウンを一切付けないこと:\n{"items":[{"sentence":"...","answer":"..."}]}';
+async function aiClozeFromText(srcText){
+  const key=loadApiKey(); if(!key)throw new Error('NO_KEY');
+  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:loadAiModel(),max_tokens:4000,messages:[{role:'user',content:AI_CLOZE_PROMPT+'\n\n=== 内容 ===\n'+String(srcText||'').slice(0,12000)}]})});
+  await aiThrowIfBad(res); const data=await res.json();
+  return parseAiCloze((data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n'));
+}
+async function aiClozeFromImage(dataURL){
+  const key=loadApiKey(); if(!key)throw new Error('NO_KEY');
+  const comma=dataURL.indexOf(','); const b64=dataURL.slice(comma+1); const mt=(dataURL.slice(5,comma).split(';')[0])||'image/jpeg';
+  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:loadAiModel(),max_tokens:4000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mt,data:b64}},{type:'text',text:AI_CLOZE_PROMPT}]}]})});
+  await aiThrowIfBad(res); const data=await res.json();
+  return parseAiCloze((data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n'));
+}
+async function bulkmakeai(){
+  if(!loadApiKey()){ toast('⚙️AI設定でAPIキーを登録してね'); return; }
+  const hasImg=!!modalState.bulkImage;
+  const text=($('#bulkText')&&$('#bulkText').value.trim())||'';
+  if(!hasImg && !text){ toast('写真・PDF、または文章を入れてね'); return; }
+  const box=$('#bulkAi'); if(box)box.innerHTML='<div class="panel"><div class="mut">✨ AIが作っています…（数秒〜十数秒）</div></div>';
+  try{
+    let targetDeck=deckById(state.deckId);
+    if(!targetDeck){ targetDeck={id:uid(),name:'写真・PDFからつくった暗記帳',emoji:'📷',color:'sky',cards:[],createdAt:Date.now()}; DECKS.push(targetDeck); }
+    if(modalState.bulkMode==='cloze'){
+      const items=hasImg?await aiClozeFromImage(modalState.bulkImage):await aiClozeFromText(text);
+      const built=buildClozeFromItems(items);
+      if(!built.answers.length){ if(box)box.innerHTML='<div class="panel"><div class="mut">穴埋めを作れませんでした。内容を変えてお試しを。</div></div>'; return; }
+      targetDeck.sheets=targetDeck.sheets||[]; const sid=uid();
+      targetDeck.sheets.push({id:sid,template:built.template,answers:built.answers,createdAt:Date.now()});
+      await idbPut(targetDeck); closeModal(); state.deckId=targetDeck.id; state.sheetId=sid; go('cloze'); toast('✨ AIが穴埋めシートを作ったよ！📝');
+    } else {
+      const pairs=hasImg?await aiGenerateFromImage(modalState.bulkImage):await aiGenerateFromText(text);
+      if(!pairs.length){ if(box)box.innerHTML='<div class="panel"><div class="mut">カードを作れませんでした。内容を変えてお試しを。</div></div>'; return; }
+      for(const p of pairs){ targetDeck.cards.push({id:uid(),front:p[0],back:p[1],hint:'',image:null,box:0}); }
+      await idbPut(targetDeck); closeModal(); state.deckId=targetDeck.id; go('deck'); toast('✨ AIが'+pairs.length+'枚のカードを作ったよ！🎉');
+    }
+  }catch(e){
+    var m=(e&&e.message)||'エラー';
+    var disp = m==='NO_KEY' ? '⚙️AI設定でAPIキーを登録してください'
+      : /failed to fetch|networkerror|load failed/i.test(m) ? '通信できませんでした。ネット接続、またはブラウザのブロック（CORS）の可能性があります。'
+      : esc(m);
+    const b2=$('#bulkAi'); if(b2)b2.innerHTML='<div class="panel"><div class="mut">⚠️ '+disp+'</div></div>';
   }
 }
 
@@ -1875,6 +1940,7 @@ document.addEventListener('click',async e=>{
     case 'brm': modalState.bulkImage=null;refreshBulkPhoto();break;
     case 'aigen': aigen();break;
     case 'bulkmake': bulkmake();break;
+    case 'bulkmakeai': bulkmakeai();break;
     case 'aisettings': settingsModal();break;
     case 'aisave': aisave();break;
     case 'aiclear': aiclear();break;
