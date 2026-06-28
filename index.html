@@ -407,6 +407,7 @@ function dueCount(){ let n=0; DECKS.forEach(d=>d.cards.forEach(c=>{ if(cardDue(c
 function dailyGoal(){ return META.dailyGoal||10; }
 function todayCount(){ return (META.history&&META.history[todayStr()])||0; }
 function addStudyCount(n){ META.history=META.history||{}; const t=todayStr(); META.history[t]=(META.history[t]||0)+n; saveMeta(); }
+function addAccuracy(c,t){ if(!t)return; META.accHist=META.accHist||{}; const d=todayStr(); const a=META.accHist[d]||{c:0,t:0}; a.c+=c; a.t+=t; META.accHist[d]=a; saveMeta(); }
 function calendarHTML(){
   const out=[]; const now=new Date();
   for(let i=27;i>=0;i--){ const d=new Date(); d.setDate(now.getDate()-i);
@@ -521,6 +522,7 @@ function render(){
   if(state.view==='home') app.innerHTML=viewHome();
   else if(state.view==='deck') app.innerHTML=viewDeck();
   else if(state.view==='cloze') app.innerHTML=viewCloze();
+  else if(state.view==='report') app.innerHTML=viewReport();
   else if(state.view==='flash') app.innerHTML=viewFlash();
   else if(state.view==='quiz') app.innerHTML=viewQuiz();
   else if(state.view==='type') app.innerHTML=viewType();
@@ -581,6 +583,7 @@ function viewHome(){
     <div class="stat"><div class="n">${totalCards}</div><div class="l">カードの数 🃏</div><span class="ic">🃏</span></div>
     <div class="stat"><div class="n">${totalMastered}</div><div class="l">おぼえた ⭐</div><span class="ic">⭐</span></div>
   </div>
+  ${DECKS.length?`<button class="btn block ghost sm rise" data-action="report" style="margin:4px 0 2px">📊 学習の記録・にがてを見る</button>`:''}
 
   <div class="panel rise" style="margin-bottom:18px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -635,6 +638,7 @@ function viewDeck(){
   <button class="backbtn" data-action="home">‹ もどる</button>
   <div class="deckhero rise" style="background:linear-gradient(140deg,${col.c},${col.d})">
     <div class="tools">
+      <button class="iconbtn" data-action="printdeck" title="紙に印刷">🖨️</button>
       <button class="iconbtn" data-action="shareqr" title="QRで共有">📲</button>
       <button class="iconbtn" data-action="editdeck" title="暗記帳を編集">✏️</button>
     </div>
@@ -715,9 +719,10 @@ function viewCloze(){
     <h1>穴埋めシート</h1>
     <div class="sub">${(sheet.answers||[]).length}問 ・ 空欄をタップで答え</div>
   </div>
-  <div class="rise" style="display:flex;gap:8px;margin:12px 0">
+  <div class="rise" style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
     <button class="btn ghost sm" data-action="clozeshowall">👁️ ぜんぶ表示</button>
     <button class="btn ghost sm" data-action="clozehideall">🙈 ぜんぶ隠す</button>
+    <button class="btn ghost sm" data-action="printcloze">🖨️ 印刷</button>
   </div>
   <div class="cz-list rise">${clozeHTML(sheet)}</div>
   `;
@@ -928,6 +933,7 @@ async function finishSession(){
   for(const id of ids){ const d=deckById(id); if(d) await idbPut(d); }
   bumpStreak();
   const n=state.session.cards.length;
+  const _s=state.session; addAccuracy(_s.correct||0,(_s.correct||0)+(_s.wrong||0));
   META.totalReviews=(META.totalReviews||0)+n; saveMeta();
   addStudyCount(n);
   go('result');
@@ -953,6 +959,92 @@ function viewResult(){
       <button class="btn lg block ghost" data-action="open" data-id="${state.deckId}">暗記帳に もどる</button>
     </div>
   </div>`;
+}
+
+/* ---------- 学習レポート（にがて・正答率） ---------- */
+function weakCardsAll(){ const out=[]; DECKS.forEach(d=>d.cards.forEach(c=>{ if((c.box||0)<MASTER_BOX) out.push({card:c,deck:d}); })); return out; }
+function startWeakReview(){
+  const list=weakCardsAll();
+  if(!list.length){toast('にがてカードはありません！🎉');return;}
+  const ids=[...new Set(list.map(x=>x.deck.id))];
+  const groups={}; list.forEach(x=>{(groups[x.card.box||0]=groups[x.card.box||0]||[]).push(x.card);});
+  const cards=Object.keys(groups).sort((a,b)=>a-b).flatMap(k=>shuffle(groups[k]));
+  state.session={mode:'flash',cards,idx:0,correct:0,wrong:0,results:[],deckIds:ids,review:true};
+  go('flash');
+}
+function reportGraphHTML(){
+  const h=META.accHist||{}; const now=new Date(); const days=[];
+  for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(now.getDate()-i); const key=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); const a=h[key]; const pct=(a&&a.t)?Math.round(a.c/a.t*100):null; days.push({pct:pct,label:(d.getMonth()+1)+'/'+d.getDate()}); }
+  if(!days.some(x=>x.pct!==null)) return '<div class="mut" style="text-align:center;padding:14px 0">まだ記録がありません。クイズやタイピングをやると、ここに正答率が出ます 📈</div>';
+  const bars=days.map(x=>{
+    const px=x.pct===null?0:Math.max(4,Math.round(x.pct*0.72));
+    const col=x.pct===null?'var(--line)':(x.pct>=80?'var(--teal)':x.pct>=50?'var(--yellow)':'var(--pink)');
+    return '<div style="flex:1;text-align:center"><div style="height:84px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center"><div style="font-size:9px;color:var(--ink-soft)">'+(x.pct===null?'':x.pct)+'</div><div style="width:62%;height:'+px+'px;background:'+col+';border-radius:5px 5px 0 0;margin-top:2px"></div></div><div style="font-size:8px;color:var(--ink-soft);margin-top:3px">'+x.label+'</div></div>';
+  }).join('');
+  return '<div style="display:flex;gap:2px;align-items:flex-end">'+bars+'</div>';
+}
+function weakListHTML(){
+  const weak=weakCardsAll();
+  if(!weak.length) return '<div class="empty" style="padding:18px">'+mascotSVG(90,'happy')+'<p>にがてカードはありません！<br>ぜんぶ おぼえてる？ すごい！🎉</p></div>';
+  weak.sort((a,b)=>(a.card.box||0)-(b.card.box||0));
+  const shown=weak.slice(0,60);
+  const rows=shown.map(x=>'<div class="cardrow" data-action="open" data-id="'+x.deck.id+'"><div class="thumb ph">'+esc(x.deck.emoji||'📘')+'</div><div class="ft"><div class="q">'+(esc(x.card.front)||'(もんだいなし)')+'</div><div class="a">'+esc(x.deck.name)+' ・ '+(esc(x.card.back)||'')+'</div></div><span class="box no">box '+(x.card.box||0)+'</span></div>').join('');
+  const more=weak.length>shown.length?'<div class="mut" style="text-align:center;margin-top:6px">ほか '+(weak.length-shown.length)+'件</div>':'';
+  return rows+more;
+}
+function viewReport(){
+  const totalMastered=DECKS.reduce((s,d)=>s+masteredCount(d),0);
+  const weakN=weakCardsAll().length;
+  const h=META.accHist||{}; let tc=0,tt=0; Object.keys(h).forEach(k=>{tc+=h[k].c||0;tt+=h[k].t||0;});
+  const overall=tt?Math.round(tc/tt*100):null;
+  return `
+  <button class="backbtn" data-action="home">‹ もどる</button>
+  <div class="sectionhead rise"><h2>📊 学習の記録</h2><span class="line"></span></div>
+  <div class="stats rise">
+    <div class="stat"><div class="n">${totalMastered}</div><div class="l">おぼえた ⭐</div></div>
+    <div class="stat"><div class="n">${weakN}</div><div class="l">にがて 💪</div></div>
+    <div class="stat"><div class="n">${overall===null?'—':overall}</div><div class="l">正答率% 🎯</div></div>
+  </div>
+  <div class="panel rise" style="margin-top:14px">
+    <div style="font-weight:800;margin-bottom:8px">🎯 正答率のうつりかわり（さいきん2週間）</div>
+    ${reportGraphHTML()}
+  </div>
+  <div class="sectionhead rise" style="margin-top:18px"><h2>💪 にがてカード</h2><span class="line"></span></div>
+  ${weakN?`<button class="btn block teal rise" data-action="weakreview" style="margin-bottom:12px">💪 にがてを まとめて復習（${weakN}）</button>`:''}
+  ${weakListHTML()}
+  `;
+}
+
+/* ---------- 印刷（紙のプリント・カード一覧／穴埋めシート） ---------- */
+function openPrint(title, bodyHTML){
+  const w=window.open('','_blank');
+  if(!w){ toast('印刷ウィンドウを開けませんでした（ポップアップを許可してね）'); return; }
+  w.document.write('<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><style>body{font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;color:#111;margin:22px;line-height:1.7}h1{font-size:20px;margin:0 0 4px}.sub{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:8px 10px;text-align:left;font-size:14px;vertical-align:top}th{background:#f3f3f3}.num{width:34px;text-align:center;color:#666}.q{width:48%}.cz{font-size:15px;line-height:2.6}.cz .b{border-bottom:1px solid #333;display:inline-block;min-width:84px;text-align:center;padding:0 6px}.key{margin-top:18px;font-size:13px;color:#222;border-top:1px dashed #bbb;padding-top:10px}.key h2{font-size:14px;margin:0 0 6px}.bar{margin-bottom:16px}.bar button{font-size:14px;padding:8px 18px;border-radius:8px;border:1px solid #999;background:#fff;cursor:pointer}@media print{.bar{display:none}}</style></head><body><div class="bar"><button onclick="window.print()">🖨️ 印刷する</button></div>'+bodyHTML+'</body></html>');
+  w.document.close();
+  setTimeout(function(){ try{w.focus();w.print();}catch(e){} },350);
+}
+function deckPrintHTML(d, withAnswers){
+  const rows=d.cards.map((c,i)=>'<tr><td class="num">'+(i+1)+'</td><td class="q">'+(esc(c.front)||'')+'</td><td>'+(withAnswers?(esc(c.back)||''):'')+'</td></tr>').join('');
+  return '<h1>'+esc(d.name)+'</h1><div class="sub">カード '+d.cards.length+'まい'+(withAnswers?'（答えあり）':'（テスト用・答えはかくしています）')+'</div><table><thead><tr><th class="num">#</th><th class="q">もんだい</th><th>こたえ</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+function clozePrintHTML(d, sheet, withAnswers){
+  const ans=sheet.answers||[];
+  let html=esc(sheet.template||'').replace(/\{\{(\d+)\}\}/g,function(m,i){ return '<span class="b">'+(withAnswers?(esc(ans[+i])||''):'（'+(+i+1)+'）')+'</span>'; });
+  html=html.replace(/\n/g,'<br>');
+  let key='';
+  if(!withAnswers) key='<div class="key"><h2>こたえ</h2>'+ans.map((a,i)=>'（'+(i+1)+'）'+esc(a)).join('　')+'</div>';
+  return '<h1>📝 穴埋めシート（'+esc(d.name)+'）</h1><div class="sub">'+ans.length+'問'+(withAnswers?'（答えあり）':'')+'</div><div class="cz">'+html+'</div>'+key;
+}
+function printDeck(id, wa){ const d=deckById(id); if(!d)return; if(!d.cards.length){toast('カードがありません');return;} openPrint(d.name, deckPrintHTML(d,wa)); }
+function printCloze(id, sid, wa){ const d=deckById(id); const s=(d&&(d.sheets||[]).find(x=>x.id===sid)); if(!d||!s){toast('シートが見つかりません');return;} openPrint('穴埋めシート', clozePrintHTML(d,s,wa)); }
+function printModal(kind){
+  const isCloze=kind==='cloze';
+  openModal(`<div class="mh"><h3>🖨️ 印刷</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
+    <div class="mb">
+      <div class="mut" style="margin-bottom:12px">どちらを印刷しますか？（新しいタブで開きます）</div>
+      <button class="btn block teal" data-action="doprint" data-kind="${kind}" data-ans="1" style="margin-bottom:10px">📄 ${isCloze?'答えありで印刷':'問題＋答え（おぼえる用）'}</button>
+      <button class="btn block ghost" data-action="doprint" data-kind="${kind}" data-ans="0">✍️ ${isCloze?'テスト用（答えは下にまとめる）':'問題だけ（テスト用）'}</button>
+    </div>`);
 }
 
 /* =========================================================
@@ -1737,14 +1829,14 @@ async function applyRemoteSpace(kind, data, merge){
     const otherSpace=DECKS.filter(d=> isShared ? !isSharedDeck(d) : isSharedDeck(d) );   // 別スペースのデッキは温存
     const kept = merge ? DECKS.filter(d=> (isShared?isSharedDeck(d):!isSharedDeck(d)) && !rid.has(d.id)) : []; // 初回接続：ローカル分も残す
     DECKS = otherSpace.concat(remoteDecks, kept);
-    if(!isShared && data.meta){ const m=data.meta; META.streak=m.streak||0; META.lastDay=m.lastDay||''; META.totalReviews=m.totalReviews||0; META.dailyGoal=m.dailyGoal||META.dailyGoal||10; META.history=m.history||{}; saveMeta(); }
+    if(!isShared && data.meta){ const m=data.meta; META.streak=m.streak||0; META.lastDay=m.lastDay||''; META.totalReviews=m.totalReviews||0; META.dailyGoal=m.dailyGoal||META.dailyGoal||10; META.history=m.history||{}; META.accHist=m.accHist||META.accHist||{}; saveMeta(); }
     for(const d of remoteDecks){ await idbPut(d); }
     if(state.view==='home'||state.view==='deck')render();
   }catch(e){} finally{ _syncApplying=false; }
 }
 function scheduleSync(){ if(!syncOn()||_syncApplying||!_sb)return; clearTimeout(_syncTimer); _syncTimer=setTimeout(pushNow,1200); }
 function serializeDeck(d){ return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0})),sheets:((d.sheets)||[]).map(s=>({id:s.id,template:s.template||'',answers:(s.answers)||[],createdAt:s.createdAt||0}))}; }
-function serializeMeta(){ return {streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{}}; }
+function serializeMeta(){ return {streak:META.streak||0,lastDay:META.lastDay||'',totalReviews:META.totalReviews||0,dailyGoal:META.dailyGoal||10,history:META.history||{},accHist:META.accHist||{}}; }
 async function pushNow(){
   if(!_sb||!syncOn())return;
   try{
@@ -1796,6 +1888,7 @@ function menuModal(){
     <div class="mh"><h3>⚙️ メニュー</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
     <div class="mb">
       <button class="btn block teal" data-action="photoBulk0" style="margin-bottom:12px">📷📄 写真・PDFから問題を作る</button>
+      <button class="btn block ghost" data-action="report" style="margin-bottom:12px">📊 学習の記録（にがて・正答率）</button>
       <hr class="dash">
       <div class="mut" style="margin-bottom:10px">暗記帳のデータをファイルに保存（バックアップ）したり、そのファイルから戻したりできます。機種変更や、他の人へわたすときに。</div>
       <button class="btn block ghost" data-action="export" style="margin-bottom:10px">📤 暗記帳を書き出す（バックアップ保存）</button>
@@ -1894,6 +1987,11 @@ document.addEventListener('click',async e=>{
   switch(a){
     case 'home': go('home');break;
     case 'review': startReview();break;
+    case 'report': go('report');break;
+    case 'weakreview': startWeakReview();break;
+    case 'printdeck': printModal('deck');break;
+    case 'printcloze': printModal('cloze');break;
+    case 'doprint': { closeModal(); if(t.dataset.kind==='cloze')printCloze(state.deckId,state.sheetId,t.dataset.ans==='1'); else printDeck(state.deckId,t.dataset.ans==='1'); break; }
     case 'optrev': (state.studyOpts=state.studyOpts||{}).reverse=(t.dataset.v==='1');render();break;
     case 'optweak': (state.studyOpts=state.studyOpts||{}).weak=(t.dataset.v==='1');render();break;
     case 'shareqr': shareQR();break;
