@@ -116,6 +116,13 @@
 
   /* ---------- cards / panels ---------- */
   .panel{background:var(--paper-2);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+  .cz-list{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
+  .cz-line{display:flex;gap:12px;align-items:flex-start;background:var(--paper-2);border-radius:16px;box-shadow:var(--shadow);padding:13px 15px}
+  .cz-num{flex:none;width:26px;height:26px;border-radius:9px;background:var(--paper);color:var(--ink-soft);font-family:var(--font-num);font-weight:800;display:grid;place-items:center;font-size:13px;margin-top:5px}
+  .cz-text{flex:1;color:var(--ink);font-weight:600;font-size:16px;line-height:2.2;word-break:break-word}
+  .cloze-blank{display:inline-block;min-width:52px;text-align:center;font-weight:800;cursor:pointer;padding:2px 13px;margin:0 3px;border-radius:999px;background:var(--paper);border:2px dashed var(--pink);color:var(--pink-d);transition:background .15s,border-color .15s,color .15s;vertical-align:baseline}
+  .cloze-blank:active{transform:scale(.95)}
+  .cloze-blank.on{background:var(--yellow);border-style:solid;border-color:var(--yellow-d);color:#5a3d00}
   .hello{
     margin:18px 0 6px;display:flex;align-items:center;gap:16px;
   }
@@ -688,10 +695,14 @@ function clozeSheetFromText(text){
   }
   return {template:lines.join('\n'), answers};
 }
+function clozeBlankHTML(ans){ return '<span class="cloze-blank" data-action="clozeblank" data-ans="'+esc(ans||'')+'">？</span>'; }
 function clozeHTML(sheet){
-  let html=esc(sheet.template||'');
-  html=html.replace(/\{\{(\d+)\}\}/g,function(m,i){ const a=(sheet.answers||[])[+i]||''; return '<span class="cloze-blank" data-action="clozeblank" data-ans="'+esc(a)+'" style="display:inline-block;min-width:54px;text-align:center;border-bottom:3px solid var(--pink-d);color:var(--pink-d);font-weight:800;cursor:pointer;padding:0 8px;border-radius:6px">____</span>'; });
-  return html.replace(/\n/g,'<br>');
+  const lines=String(sheet.template||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const ans=sheet.answers||[];
+  return lines.map(function(line,n){
+    const h=esc(line).replace(/\{\{(\d+)\}\}/g,function(m,i){ return clozeBlankHTML(ans[+i]); });
+    return '<div class="cz-line"><span class="cz-num">'+(n+1)+'</span><span class="cz-text">'+h+'</span></div>';
+  }).join('');
 }
 function viewCloze(){
   const d=deckById(state.deckId); if(!d){go('home');return '';}
@@ -708,7 +719,7 @@ function viewCloze(){
     <button class="btn ghost sm" data-action="clozeshowall">👁️ ぜんぶ表示</button>
     <button class="btn ghost sm" data-action="clozehideall">🙈 ぜんぶ隠す</button>
   </div>
-  <div class="panel rise" style="line-height:2.4;font-size:17px;word-break:break-word">${clozeHTML(sheet)}</div>
+  <div class="cz-list rise">${clozeHTML(sheet)}</div>
   `;
 }
 async function clozeDel(id){
@@ -1829,9 +1840,9 @@ document.addEventListener('click',async e=>{
     case 'deck': go('deck');break;
     case 'clozeopen': state.sheetId=id;go('cloze');break;
     case 'clozedel': clozeDel(id);break;
-    case 'clozeblank': { const on=t.getAttribute('data-on')==='1'; if(on){t.textContent='____';t.removeAttribute('data-on');t.style.background='transparent';} else {t.textContent=t.dataset.ans||'？';t.setAttribute('data-on','1');t.style.background='var(--yellow)';} break; }
-    case 'clozeshowall': $$('.cloze-blank').forEach(b=>{b.textContent=b.dataset.ans||'？';b.setAttribute('data-on','1');b.style.background='var(--yellow)';});break;
-    case 'clozehideall': $$('.cloze-blank').forEach(b=>{b.textContent='____';b.removeAttribute('data-on');b.style.background='transparent';});break;
+    case 'clozeblank': { const on=t.classList.toggle('on'); t.textContent=on?(t.dataset.ans||'？'):'？'; break; }
+    case 'clozeshowall': $$('.cloze-blank').forEach(b=>{b.classList.add('on');b.textContent=b.dataset.ans||'？';});break;
+    case 'clozehideall': $$('.cloze-blank').forEach(b=>{b.classList.remove('on');b.textContent='？';});break;
     case 'newdeck': deckModal(null);break;
     case 'newshareddeck': deckModal(null,{shared:true});break;
     case 'editdeck': deckModal(deckById(id||state.deckId));break;
