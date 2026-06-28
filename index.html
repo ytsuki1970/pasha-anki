@@ -1155,9 +1155,23 @@ async function ocrToCard(){
 }
 
 /* ----- bulk from photo ----- */
+function bulkActionsHTML(){
+  const cloze=modalState.bulkMode==='cloze';
+  const hasKey=!!loadApiKey();
+  if(cloze){
+    return hasKey
+      ? '<button class="btn block" data-action="bulkmakeai" id="bulkAiBtn">✨ AIで穴埋めシートを作る</button>'
+        +'<div class="mut" style="margin-top:6px;font-size:12px">穴埋めシートはAIが作ります（空欄にする語を賢く選びます）。写真があれば写真から、なければ上の文章から。</div>'
+      : '<button class="btn block" data-action="aisettings">⚙️ AI設定（キー登録）をひらく</button>'
+        +'<div class="mut" style="margin-top:6px;font-size:12px">穴埋めシートはAIで作ります。右上⚙️→「AI設定」でAPIキーを登録すると使えます（任意）。※カードなら無料でも作れます。</div>';
+  }
+  return '<button class="btn block teal" data-action="bulkmake" id="bulkMakeBtn">🃏 カードを作る</button>'
+    + (hasKey
+       ? '<button class="btn block" data-action="bulkmakeai" id="bulkAiBtn" style="margin-top:8px">✨ AIでカードを作る</button><div class="mut" style="margin-top:6px;font-size:12px">「AIで作る」は、写真があれば写真から、なければ上の文章から作ります。</div>'
+       : '<div class="mut" style="margin-top:8px;font-size:12px">✨ もっと賢く作りたいときは、右上⚙️→「AI設定」でキー登録（任意）すると「AIで作る」が使えます。</div>');
+}
 function bulkModal(){
   modalState={bulkImage:null, bulkMode:'list'};
-  const hasKey=!!loadApiKey();
   openModal(`
     <div class="mh"><h3>📷📄 写真・PDFから問題を作る</h3><button class="iconbtn" data-action="closeModal">✕</button></div>
     <div class="mb">
@@ -1175,10 +1189,7 @@ function bulkModal(){
         <textarea class="ta" id="bulkText" style="min-height:120px" placeholder="apple りんご&#10;dog いぬ&#10;光合成 photosynthesis"></textarea></label>
 
       <div class="lab" style="font-weight:800;font-size:13px;margin:16px 0 6px">③ 作る</div>
-      <button class="btn block teal" data-action="bulkmake" id="bulkMakeBtn">🃏 カードを作る</button>
-      ${hasKey
-        ? '<button class="btn block" data-action="bulkmakeai" id="bulkAiBtn" style="margin-top:8px">✨ AIでカードを作る</button><div class="mut" style="margin-top:6px;font-size:12px">「AIで作る」は、写真があれば写真から、なければ上の文章から、選んだ種類で賢く作ります。</div>'
-        : '<div class="mut" style="margin-top:8px;font-size:12px">✨ もっと賢く作りたいときは、右上⚙️→「AI設定」でキー登録（任意）すると「AIで作る」が使えます。</div>'}
+      <div id="bulkActions">${bulkActionsHTML()}</div>
     </div>`);
   $('#bulkModeSeg').addEventListener('click',e=>{
     const b=e.target.closest('[data-bmode]');if(!b)return;
@@ -1191,8 +1202,7 @@ function bulkModal(){
     $('#bulkText').setAttribute('placeholder', cloze
       ? '光合成は葉緑体で行われる。\n鎌倉幕府は1192年に成立した。'
       : 'apple りんご\ndog いぬ\n光合成 photosynthesis');
-    const mk=$('#bulkMakeBtn'); if(mk)mk.textContent=cloze?'📝 穴埋めシートを作る':'🃏 カードを作る';
-    const ai=$('#bulkAiBtn'); if(ai)ai.textContent=cloze?'✨ AIで穴埋めシートを作る':'✨ AIでカードを作る';
+    const ba=$('#bulkActions'); if(ba)ba.innerHTML=bulkActionsHTML();
   });
 }
 function bulkPhotoHTML(){
@@ -1236,6 +1246,7 @@ function parseLine(line){
   return [line.trim(),''];
 }
 async function bulkmake(){
+  if(modalState.bulkMode==='cloze'){ return bulkmakeai(); } // 穴埋めシートはAI専用
   let targetDeck=deckById(state.deckId);
   if(!targetDeck){ targetDeck={id:uid(),name:'写真からつくった暗記帳',emoji:'📷',color:'sky',cards:[],createdAt:Date.now()}; DECKS.push(targetDeck); }
   const raw=$('#bulkText').value;
