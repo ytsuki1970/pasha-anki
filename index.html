@@ -1104,6 +1104,7 @@ async function savedeck(){
 async function deldeck(){
   const d=modalState.deck;
   if(!confirm(`「${d.name}」を削除します。カードも全部消えます。よろしいですか？`))return;
+  META.delDecks=META.delDecks||{}; META.delDecks[d.id]=Date.now(); saveMeta(); // 削除マーク（同期で復活させない）
   await idbDel(d.id);DECKS=DECKS.filter(x=>x.id!==d.id);closeModal();go('home');toast('削除しました');
 }
 
@@ -1836,19 +1837,28 @@ function normalizeDeck(d, isShared, imgMap){
     sheets:((d.sheets)||[]).map(s=>({id:s.id,template:s.template||'',answers:(s.answers)||[],createdAt:s.createdAt||0}))};
 }
 async function applyRemoteSpace(kind, data, merge){
-  _syncApplying=true;
+  _syncApplying=true; let needRepush=false;
   try{
     const isShared=(kind==='shared');
+    // 削除マーク（tombstone）を統合：どちらかで消したものは消えたまま
+    const rdel=(data&&data.del)||{}; META.delDecks=META.delDecks||{};
+    for(const id in rdel){ if(!(id in META.delDecks)||rdel[id]>META.delDecks[id]) META.delDecks[id]=rdel[id]; }
+    const tomb=META.delDecks;
     const imgMap={}; DECKS.forEach(d=>d.cards.forEach(c=>{ if(c.image)imgMap[c.id]=c.image; }));
-    const remoteDecks=((data.decks)||[]).map(d=>normalizeDeck(d,isShared,imgMap));
+    let remoteDecks=((data.decks)||[]).map(d=>normalizeDeck(d,isShared,imgMap));
+    if(remoteDecks.some(d=>tomb[d.id])) needRepush=true;     // 相手が削除済みデッキを持っていた→削除を再送して直す
+    remoteDecks=remoteDecks.filter(d=>!tomb[d.id]);          // 削除済みは取り込まない
     const rid=new Set(remoteDecks.map(d=>d.id));
     const otherSpace=DECKS.filter(d=> isShared ? !isSharedDeck(d) : isSharedDeck(d) );   // 別スペースのデッキは温存
-    const kept = merge ? DECKS.filter(d=> (isShared?isSharedDeck(d):!isSharedDeck(d)) && !rid.has(d.id)) : []; // 初回接続：ローカル分も残す
+    const kept = merge ? DECKS.filter(d=> (isShared?isSharedDeck(d):!isSharedDeck(d)) && !rid.has(d.id) && !tomb[d.id]) : []; // 初回接続：ローカル分も残す（削除済みは除く）
     DECKS = otherSpace.concat(remoteDecks, kept);
-    if(!isShared && data.meta){ const m=data.meta; META.streak=m.streak||0; META.lastDay=m.lastDay||''; META.totalReviews=m.totalReviews||0; META.dailyGoal=m.dailyGoal||META.dailyGoal||10; META.history=m.history||{}; META.accHist=m.accHist||META.accHist||{}; saveMeta(); }
+    if(!isShared && data.meta){ const m=data.meta; META.streak=m.streak||0; META.lastDay=m.lastDay||''; META.totalReviews=m.totalReviews||0; META.dailyGoal=m.dailyGoal||META.dailyGoal||10; META.history=m.history||{}; META.accHist=m.accHist||META.accHist||{}; }
+    saveMeta();
     for(const d of remoteDecks){ await idbPut(d); }
-    if(state.view==='home'||state.view==='deck')render();
+    for(const id in tomb){ try{ tx('readwrite').delete(id); }catch(e){} } // 削除済みはローカルDBからも消す
+    if(state.view==='home'||state.view==='deck'||state.view==='report')render();
   }catch(e){} finally{ _syncApplying=false; }
+  if(needRepush){ try{ pushNow(); }catch(e){} } // 削除を相手にも反映させる
 }
 function scheduleSync(){ if(!syncOn()||_syncApplying||!_sb)return; clearTimeout(_syncTimer); _syncTimer=setTimeout(pushNow,1200); }
 function serializeDeck(d){ return {id:d.id,name:d.name||'',emoji:d.emoji||'📘',color:d.color||'pink',createdAt:d.createdAt||0,cards:((d.cards)||[]).map(c=>({id:c.id,front:c.front||'',back:c.back||'',hint:c.hint||'',box:c.box||0,last:c.last||0})),sheets:((d.sheets)||[]).map(s=>({id:s.id,template:s.template||'',answers:(s.answers)||[],createdAt:s.createdAt||0}))}; }
@@ -1859,7 +1869,7 @@ async function pushNow(){
     for(const sp of syncSpaces()){
       const isShared=(sp.kind==='shared');
       const decks=DECKS.filter(d=> isShared?isSharedDeck(d):!isSharedDeck(d) ).map(serializeDeck);
-      const data = isShared ? {decks} : {decks, meta:serializeMeta()};
+      const data = isShared ? {decks, del:META.delDecks||{}} : {decks, meta:serializeMeta(), del:META.delDecks||{}};
       const {error}=await _sb.from('families').upsert({code:sp.code,data,updated_by:deviceId(),updated_at:Date.now()});
       if(error)syncStatus='エラー：'+(error.message||'');
     }
