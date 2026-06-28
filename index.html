@@ -1758,18 +1758,26 @@ function listenTick(tok){
   if(tok!==listenToken)return; const s=state.session; if(!s||s.mode!=='listen'||s.paused)return;
   if(s.idx>=s.cards.length){ finishListen(); return; }
   const card=s.cards[s.idx];
+  const qt=ttsClean(qSide(card)), at=ttsClean(aSide(card));
+  const guard=()=> (tok===listenToken && !s.paused);
   s.phase='q'; paintListen();
   try{speechSynthesis.cancel();}catch(_){}
-  speakChunks(ttsClean(qSide(card)), ()=>{        // 問題を最後まで読み終えたら
-    if(tok!==listenToken||s.paused)return;
-    setTimeout(()=>{
-      if(tok!==listenToken||s.paused)return;
-      s.phase='a'; paintListen();
-      speakChunks(ttsClean(aSide(card)), ()=>{    // 答えも最後まで読み終えたら
-        if(tok!==listenToken||s.paused)return;
-        setTimeout(()=>{ if(tok!==listenToken||s.paused)return; s.idx++; listenTick(tok); }, 800);
-      });
-    }, 500);
+  speakChunks(qt, ()=>{                 // 問題：1回目
+    if(!guard())return;
+    speakChunks(qt, ()=>{               // 問題：2回目（反復）
+      if(!guard())return;
+      setTimeout(()=>{
+        if(!guard())return;
+        s.phase='a'; paintListen();
+        speakChunks(at, ()=>{           // 答え：1回目
+          if(!guard())return;
+          speakChunks(at, ()=>{         // 答え：2回目（反復）
+            if(!guard())return;
+            setTimeout(()=>{ if(!guard())return; s.idx++; listenTick(tok); }, 800);
+          });
+        });
+      }, 500);
+    });
   });
 }
 function finishListen(){
