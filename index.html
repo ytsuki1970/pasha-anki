@@ -358,7 +358,7 @@ const MASTER_BOX = 4; // box>=4 を「おぼえた」とする（最大5）
 
 /* ---------- tiny IndexedDB wrapper ---------- */
 const DB_NAME='sugoi-anki', STORE='decks';
-const APP_VER='v34'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
+const APP_VER='v35'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
 let _db=null;
 function openDB(){
   return new Promise((res,rej)=>{
@@ -630,12 +630,10 @@ function viewHome(){
 
   <div class="panel rise" style="margin-bottom:18px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <div style="font-weight:800">🎯 今日の目標 <span style="font-family:var(--font-num);font-size:18px">${done}/${goal}</span> 枚 ${done>=goal&&done>0?'🎉':''}</div>
+      <div style="font-weight:600">🎯 今日の目標 <span style="font-family:var(--font-num);font-size:18px">${done}/${goal}</span> 枚 ${done>=goal&&done>0?'🎉':''}</div>
       <button class="btn ghost sm" data-action="setgoal">へんこう</button>
     </div>
     <div class="goalbar"><i style="width:${goal?Math.min(100,Math.round(done/goal*100)):0}%"></i></div>
-    <div class="caltitle">さいきんの がんばり 📅</div>
-    ${calendarHTML()}
   </div>
 
   <div class="sectionhead rise"><h2>わたしの暗記帳</h2><span class="line"></span></div>
