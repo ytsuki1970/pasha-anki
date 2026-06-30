@@ -358,7 +358,7 @@ const MASTER_BOX = 4; // box>=4 を「おぼえた」とする（最大5）
 
 /* ---------- tiny IndexedDB wrapper ---------- */
 const DB_NAME='sugoi-anki', STORE='decks';
-const APP_VER='v36'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
+const APP_VER='v37'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
 let _db=null;
 function openDB(){
   return new Promise((res,rej)=>{
@@ -618,8 +618,8 @@ function viewHome(){
   </div>
 
   ${DECKS.length?(due>0
-    ? `<button class="btn lg block teal rise" data-action="review" style="margin:8px 0 2px">📅 今日のおさらい（${due}枚）</button>`
-    : `<div class="panel rise" style="text-align:center;margin:8px 0 2px;font-weight:800">✅ 今日のおさらいは ぜんぶ完了！えらい！</div>`):''}
+    ? `<button class="btn lg block teal rise" data-action="review" style="margin:8px 0 2px">🔁 忘れる前に復習（${due}枚）</button>`
+    : `<div class="panel rise" style="text-align:center;margin:8px 0 2px;font-weight:600">✅ 今日ぶんの復習は完了！えらい！</div>`):''}
 
   <div class="stats rise">
     <div class="stat"><div class="n">${streak}</div><div class="l">れんぞく日数 🔥</div><span class="ic">🔥</span></div>
@@ -783,7 +783,7 @@ function startSession(mode){
 }
 function startReview(){
   const {cards:due,ids}=dueList();
-  if(!due.length){toast('今日のおさらいは ぜんぶ完了！🎉');return;}
+  if(!due.length){toast('今日ぶんの復習は完了！🎉');return;}
   const groups={};due.forEach(c=>{(groups[c.box||0]=groups[c.box||0]||[]).push(c);});
   const cards=Object.keys(groups).sort((a,b)=>a-b).flatMap(k=>shuffle(groups[k]));
   state.deckId=null;
