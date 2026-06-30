@@ -358,7 +358,7 @@ const MASTER_BOX = 4; // box>=4 を「おぼえた」とする（最大5）
 
 /* ---------- tiny IndexedDB wrapper ---------- */
 const DB_NAME='sugoi-anki', STORE='decks';
-const APP_VER='v38'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
+const APP_VER='v39'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
 let _db=null;
 function openDB(){
   return new Promise((res,rej)=>{
@@ -610,25 +610,11 @@ function viewHome(){
   const showShared = sharedDecks.length>0 || !!syncSharedCode();
 
   return `
-  <div class="hello rise">
-    <div>
-      <h1>今日も、すこしずつ。</h1>
-      <p>${DECKS.length? '暗記帳をえらんでスタート':'まずは暗記帳をつくってみましょう'}</p>
-    </div>
-  </div>
-
   ${DECKS.length?(due>0
-    ? `<button class="btn lg block teal rise" data-action="review" style="margin:8px 0 2px">🔁 そろそろ復習（${due}枚）</button>`
-    : `<div class="panel rise" style="text-align:center;margin:8px 0 2px;font-weight:600">✅ 今日ぶんの復習は完了！えらい！</div>`):''}
+    ? `<button class="btn lg block teal rise" data-action="review" style="margin:14px 0 2px">🔁 そろそろ復習（${due}枚）</button>`
+    : `<div class="panel rise" style="text-align:center;margin:14px 0 2px;font-weight:600">✅ 今日ぶんの復習は完了！えらい！</div>`):''}
 
-  <div class="stats rise">
-    <div class="stat"><div class="n">${streak}</div><div class="l">れんぞく日数 🔥</div><span class="ic">🔥</span></div>
-    <div class="stat"><div class="n">${totalCards}</div><div class="l">カードの数 🃏</div><span class="ic">🃏</span></div>
-    <div class="stat"><div class="n">${totalMastered}</div><div class="l">おぼえた ⭐</div><span class="ic">⭐</span></div>
-  </div>
-  ${DECKS.length?`<button class="btn block ghost sm rise" data-action="report" style="margin:4px 0 2px">📊 学習の記録・にがてを見る</button>`:''}
-
-  <div class="sectionhead rise"><h2>わたしの暗記帳</h2><span class="line"></span></div>
+  <div class="sectionhead rise" style="margin-top:16px"><h2>わたしの暗記帳</h2><span class="line"></span></div>
   <div class="grid">
     ${mineHTML}
     <div class="addtile rise" data-action="newdeck"><span><span class="big">＋</span>新しい暗記帳をつくる</span></div>
@@ -641,9 +627,16 @@ function viewHome(){
     <div class="addtile rise" data-action="newshareddeck"><span><span class="big">＋</span>家族共有の暗記帳をつくる</span></div>
   </div>`:''}
 
-  <div class="rise" style="margin-top:26px;text-align:center">
+  <div class="rise" style="margin-top:22px;text-align:center">
     <button class="btn ghost sm" data-action="photoBulk0">📷📄 写真・PDFからまとめてカードを作る</button>
   </div>
+
+  <div class="stats rise" style="margin-top:24px">
+    <div class="stat"><div class="n">${streak}</div><div class="l">れんぞく日数</div></div>
+    <div class="stat"><div class="n">${totalCards}</div><div class="l">カードの数</div></div>
+    <div class="stat"><div class="n">${totalMastered}</div><div class="l">おぼえた</div></div>
+  </div>
+  ${DECKS.length?`<div class="rise center" style="margin-top:10px"><button class="btn ghost sm" data-action="report" style="color:var(--ink-soft);font-size:12px">📊 学習の記録・にがてを見る</button></div>`:''}
   `;
 }
 
