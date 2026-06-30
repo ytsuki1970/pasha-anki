@@ -358,7 +358,7 @@ const MASTER_BOX = 4; // box>=4 を「おぼえた」とする（最大5）
 
 /* ---------- tiny IndexedDB wrapper ---------- */
 const DB_NAME='sugoi-anki', STORE='decks';
-const APP_VER='v37'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
+const APP_VER='v38'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
 let _db=null;
 function openDB(){
   return new Promise((res,rej)=>{
@@ -618,7 +618,7 @@ function viewHome(){
   </div>
 
   ${DECKS.length?(due>0
-    ? `<button class="btn lg block teal rise" data-action="review" style="margin:8px 0 2px">🔁 忘れる前に復習（${due}枚）</button>`
+    ? `<button class="btn lg block teal rise" data-action="review" style="margin:8px 0 2px">🔁 そろそろ復習（${due}枚）</button>`
     : `<div class="panel rise" style="text-align:center;margin:8px 0 2px;font-weight:600">✅ 今日ぶんの復習は完了！えらい！</div>`):''}
 
   <div class="stats rise">
