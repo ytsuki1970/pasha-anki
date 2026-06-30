@@ -358,7 +358,7 @@ const MASTER_BOX = 4; // box>=4 を「おぼえた」とする（最大5）
 
 /* ---------- tiny IndexedDB wrapper ---------- */
 const DB_NAME='sugoi-anki', STORE='decks';
-const APP_VER='v39'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
+const APP_VER='v40'; // 画面に表示するバージョン（SWのCACHE版数に合わせる）
 let _db=null;
 function openDB(){
   return new Promise((res,rej)=>{
@@ -631,12 +631,7 @@ function viewHome(){
     <button class="btn ghost sm" data-action="photoBulk0">📷📄 写真・PDFからまとめてカードを作る</button>
   </div>
 
-  <div class="stats rise" style="margin-top:24px">
-    <div class="stat"><div class="n">${streak}</div><div class="l">れんぞく日数</div></div>
-    <div class="stat"><div class="n">${totalCards}</div><div class="l">カードの数</div></div>
-    <div class="stat"><div class="n">${totalMastered}</div><div class="l">おぼえた</div></div>
-  </div>
-  ${DECKS.length?`<div class="rise center" style="margin-top:10px"><button class="btn ghost sm" data-action="report" style="color:var(--ink-soft);font-size:12px">📊 学習の記録・にがてを見る</button></div>`:''}
+  ${DECKS.length?`<div class="rise center" style="margin-top:20px"><button class="btn ghost sm" data-action="report" style="color:var(--ink-soft);font-size:12px">📊 学習の記録・にがてを見る</button></div>`:''}
   `;
 }
 
